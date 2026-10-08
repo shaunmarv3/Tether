@@ -1,0 +1,13 @@
+{
+  "name": "tether",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Control your Android phone from your Windows PC.",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=22"
+  }
+}

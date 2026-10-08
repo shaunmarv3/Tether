@@ -1,0 +1,59 @@
+# ── Docs stay local: README.md is the ONLY doc published ─────────────
+# knowledge.md, CLAUDE.md, specs, plans, notes… never leave this PC.
+*.md
+!/README.md
+# named explicitly too, as a second guard
+CLAUDE.md
+CLAUDE.local.md
+handover.md
+phases.md
+knowledge.md
+/docs/
+*.docx
+*.pdf
+*.txt
+
+# ── AI tooling (local only) ──────────────────────────────────────────
+.claude/
+graphify-out/
+
+# ── Dependencies & builds ────────────────────────────────────────────
+node_modules/
+dist/
+out/
+build/
+release/
+*.tsbuildinfo
+.cache/
+
+# ── Logs ─────────────────────────────────────────────────────────────
+*.log
+logs/
+npm-debug.log*
+
+# ── Secrets — never commit (adb keys control the phone) ──────────────
+.env
+.env.*
+adbkey
+adbkey.pub
+*.pem
+*.key
+*.p12
+*.pfx
+
+# ── Phone data: screenshots, recordings, pulled files ────────────────
+# (images are NOT blanket-ignored: app icons live in the repo)
+*.mp4
+*.mkv
+*.apk
+screenshots/
+captures/
+recordings/
+pulled/
+
+# ── Editors / OS ─────────────────────────────────────────────────────
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+.DS_Store
