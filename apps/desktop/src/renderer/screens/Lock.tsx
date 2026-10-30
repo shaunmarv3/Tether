@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import type { AppState } from '../../shared/api'
 import { Logo } from '../Logo'
 import { tether } from '../tether'
+import { Steps } from './Connect'
 
 export const MIN_PASSWORD = 8
 
@@ -31,7 +32,7 @@ export function Lock({ state }: { state: AppState }) {
       <form className="plate" onSubmit={submit}>
         <header className="plate-head">
           <span className="row"><Logo size={22} /><span className="wordmark">TETHER</span></span>
-          <span className="tag">{setting ? 'SETUP' : 'LOCKED'}<span className="led red" /></span>
+          {setting ? <Steps n={1} /> : <span className="tag">LOCKED<span className="led red" /></span>}
         </header>
 
         <div className="lcd screen">

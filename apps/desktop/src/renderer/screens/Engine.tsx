@@ -1,5 +1,6 @@
 import type { AppState } from '../../shared/api'
 import { tether } from '../tether'
+import { Steps } from './Connect'
 
 const SEGMENTS = 24
 
@@ -12,7 +13,8 @@ export function Engine({ state }: { state: AppState }) {
       <div className="plate">
         <header className="plate-head">
           <span className="wordmark">TETHER</span>
-          <span className="tag">{busy ? 'WORKING' : 'SETUP'}<span className={`led ${busy ? 'amber blink' : 'red'}`} /></span>
+          {busy ? <span className="tag">WORKING<span className="led amber blink" /></span>
+            : state.known.length ? <span className="tag">SETUP<span className="led red" /></span> : <Steps n={2} />}
         </header>
 
         <div className="lcd screen">

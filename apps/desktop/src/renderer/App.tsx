@@ -3,6 +3,7 @@ import type { AppState } from '../shared/api'
 import { playPhoneAudio } from './audio'
 import { Apps } from './screens/Apps'
 import { Clipboard } from './screens/Clipboard'
+import { Connect } from './screens/Connect'
 import { Engine } from './screens/Engine'
 import { Files, friendlyPath } from './screens/Files'
 import { Home } from './screens/Home'
@@ -26,6 +27,7 @@ export function App() {
   const [dragging, setDragging] = useState(false)
   const [apks, setApks] = useState<string[]>([]) // dropped APKs waiting for INSTALL / CANCEL
   const [toast, setToast] = useState<AppState['fileOp'] | null>(null)
+  const [skipped, setSkipped] = useState(false) // first-run Connect: LATER, this session only
   const open = !!state && !state.locked && state.hasPin && state.engine === 'ready'
   const where = useRef({ page, filesDir })
   where.current = { page, filesDir }
@@ -88,6 +90,7 @@ export function App() {
   if (!state) return null
   if (state.locked || !state.hasPin) return <Lock state={state} />
   if (state.engine !== 'ready') return <Engine state={state} />
+  if (!state.known.length && !skipped) return <Connect state={state} skip={() => setSkipped(true)} />
   const ready = state.device?.state === 'device'
   return (
     <div className="shell">
