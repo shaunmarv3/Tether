@@ -65,7 +65,10 @@ function harden(w: BrowserWindow): void {
   w.webContents.on('will-navigate', (e) => e.preventDefault())
 }
 
-const icon = join(__dirname, '../../resources/icon.ico') // out/main → apps/desktop/resources
+const APP_ID = 'com.tether.desktop' // = electron-builder.yml appId (ties toasts + taskbar to the installer's shortcut)
+// Installed: extraResources next to app.asar. Dev: out/main → apps/desktop/resources.
+const resource = (name: string) => app.isPackaged ? join(process.resourcesPath, name) : join(__dirname, '../../resources', name)
+const icon = resource('icon.ico')
 const webPreferences = () => ({ preload: join(__dirname, '../preload/index.js'), contextIsolation: true, nodeIntegration: false, sandbox: true })
 
 const views = new Views({
@@ -481,6 +484,7 @@ function showWindow(): void {
 }
 
 app.enableSandbox()
+if (app.isPackaged) app.setAppUserModelId(APP_ID) // dev keeps Electron's default (no shortcut carries APP_ID there)
 protocol.registerSchemesAsPrivileged([{ scheme: 'tether-preview', privileges: { standard: true, secure: true, stream: true, supportFetchAPI: true } }])
 if (!app.requestSingleInstanceLock()) app.quit()
 else {
