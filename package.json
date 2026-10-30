@@ -13,7 +13,8 @@
   "scripts": {
     "test": "npm test -w @tether/core",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "dev": "npm run dev -w @tether/desktop"
+    "dev": "npm run dev -w @tether/desktop",
+    "dist": "npm run dist -w @tether/desktop"
   },
   "devDependencies": {
     "@types/node": "24.19.2",
