@@ -10,9 +10,13 @@ const api: TetherApi = {
   },
   setPin: (pin) => ipcRenderer.invoke('tether:setPin', pin),
   unlock: (pin) => ipcRenderer.invoke('tether:unlock', pin),
-  unlockHello: () => ipcRenderer.invoke('tether:unlockHello'),
   installEngine: () => ipcRenderer.invoke('tether:installEngine'),
   openMirror: () => ipcRenderer.invoke('tether:openMirror'),
+  trust: (serialNo) => ipcRenderer.invoke('tether:trust', serialNo),
+  forget: (serialNo) => ipcRenderer.invoke('tether:forget', serialNo),
+  lockdown: () => ipcRenderer.invoke('tether:lockdown'),
+  setIdle: (minutes) => ipcRenderer.invoke('tether:setIdle', minutes),
+  getActivity: () => ipcRenderer.invoke('tether:getActivity'),
 }
 
 contextBridge.exposeInMainWorld('tether', api)

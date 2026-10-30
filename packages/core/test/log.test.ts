@@ -2,7 +2,7 @@ import { mkdtempSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSy
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
-import { createLog, pruneLogs } from '../src/log'
+import { createLog, pruneLogs, readActivity } from '../src/log'
 
 const DAY = 86_400_000
 const dirs: string[] = []
@@ -28,5 +28,20 @@ describe('logs', () => {
     }
     pruneLogs(dir, 7, now)
     expect(readdirSync(dir).sort()).toEqual(['new.log', 'old.txt'])
+  })
+
+  it('readActivity returns only ACT lines, newest first, across files, with limit', () => {
+    const dir = tmp()
+    writeFileSync(join(dir, '2026-10-29.log'),
+      '2026-10-29T10:00:00.000Z ACT LOCKDOWN\n2026-10-29T10:01:00.000Z devices: none\n')
+    writeFileSync(join(dir, '2026-10-30.log'),
+      '2026-10-30T08:00:00.000Z ACT UNLOCKED · PIN\r\n2026-10-30T09:00:00.000Z ACT TRUSTED · CMF Phone 1\r\n')
+    expect(readActivity(dir)).toEqual([
+      { time: '2026-10-30T09:00:00.000Z', text: 'TRUSTED · CMF Phone 1' },
+      { time: '2026-10-30T08:00:00.000Z', text: 'UNLOCKED · PIN' },
+      { time: '2026-10-29T10:00:00.000Z', text: 'LOCKDOWN' },
+    ])
+    expect(readActivity(dir, 2)).toHaveLength(2)
+    expect(readActivity(join(dir, 'missing'))).toEqual([])
   })
 })

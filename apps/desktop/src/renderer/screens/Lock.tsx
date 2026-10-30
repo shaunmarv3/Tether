@@ -22,10 +22,6 @@ export function Lock({ state }: { state: AppState }) {
     if (result === 'wait') setError('TOO MANY TRIES · WAIT 30 S')
   }
 
-  async function hello() {
-    if (!(await tether.unlockHello())) setError("WINDOWS HELLO DIDN'T UNLOCK")
-  }
-
   const digits = (v: string) => v.replace(/\D/g, '').slice(0, 8)
 
   return (
@@ -44,18 +40,17 @@ export function Lock({ state }: { state: AppState }) {
           <div className="slots" aria-hidden="true">
             {Array.from({ length: 8 }, (_, i) => <span key={i} className={i < pin.length ? 'on' : i < 4 ? 'need' : ''} />)}
           </div>
+          {!setting && (state.lockReason || state.phoneLinked) && (
+            <div className="col tight">
+              {state.lockReason && <span className="dim small">{state.lockReason}</span>}
+              {state.phoneLinked && <span className="dim small">PHONE STILL CONNECTED</span>}
+            </div>
+          )}
         </div>
 
         <p className="note">
           {setting ? 'Pick 4 to 8 digits. You enter it every time TETHER opens.' : 'Enter your PIN to open TETHER.'}
         </p>
-
-        {!setting && state.helloAvailable && (
-          <>
-            <button type="button" className="key accent wide" onClick={hello}>UNLOCK WITH WINDOWS HELLO</button>
-            <div className="divider">OR USE YOUR PIN</div>
-          </>
-        )}
 
         <div className="fields">
           <label className="label" htmlFor="pin"><span className="num">01</span>PIN</label>

@@ -66,6 +66,24 @@ describe('Sessions', () => {
     s.closeAll()
     expect(children.every((c) => c.kill.mock.calls.length === 1)).toBe(true)
   })
+
+  it('closeAll returns the count and its kills are not errors', () => {
+    const { fn, children } = fakeSpawn()
+    const s = new Sessions(fn)
+    s.openMirror(engine, 'A', 'Phone')
+    expect(s.closeAll()).toBe(1)
+    children[0].emit('exit', 1)
+    expect(s.isOpen('A')).toBe(false)
+    expect(s.lastError).toBeNull()
+  })
+
+  it('a crash without closeAll still sets the error', () => {
+    const { fn, children } = fakeSpawn()
+    const s = new Sessions(fn)
+    s.openMirror(engine, 'A', 'Phone')
+    children[0].emit('exit', 1)
+    expect(s.lastError).toBe('scrcpy exited with code 1')
+  })
 })
 
 describe('Sessions errors', () => {

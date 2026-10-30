@@ -1,6 +1,8 @@
 // Everything TETHER stores lives in %LOCALAPPDATA%\Tether (rule 10).
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import type { KnownPhone } from '@tether/core'
+import type { IdleMinutes } from '../shared/api'
 
 const root = join(process.env.LOCALAPPDATA ?? join(process.env.USERPROFILE ?? '.', 'AppData', 'Local'), 'Tether')
 
@@ -11,14 +13,15 @@ export const paths = {
   settings: join(root, 'settings.json'),
 }
 
-export interface Settings { pinHash?: string }
+export interface Settings { pinHash?: string; knownPhones: KnownPhone[]; idleMinutes: IdleMinutes }
 
 export function loadSettings(): Settings {
-  if (!existsSync(paths.settings)) return {}
+  const defaults: Settings = { knownPhones: [], idleMinutes: 10 }
+  if (!existsSync(paths.settings)) return defaults
   try {
-    return JSON.parse(readFileSync(paths.settings, 'utf8')) as Settings
+    return { ...defaults, ...(JSON.parse(readFileSync(paths.settings, 'utf8')) as Partial<Settings>) }
   } catch {
-    return {}
+    return defaults
   }
 }
 

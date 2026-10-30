@@ -43,7 +43,12 @@ export class Sessions extends EventEmitter {
     return this.open.has(serial)
   }
 
-  closeAll(): void {
-    for (const child of this.open.values()) child.kill()
+  // Windows closed on purpose (lockdown, auto-lock, quit) are not errors.
+  closeAll(): number {
+    const children = [...this.open.values()]
+    this.open.clear()
+    for (const child of children) child.kill()
+    if (children.length) this.emit('change')
+    return children.length
   }
 }
