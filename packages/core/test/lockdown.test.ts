@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import { run } from '../src/run'
 import { disableWirelessDebugging, lockdown } from '../src/lockdown'
-import type { Sessions } from '../src/sessions'
 import type { Device } from '../src/devices'
+
+type Views = Parameters<typeof lockdown>[1]
 
 vi.mock('../src/run', () => ({ run: vi.fn() }))
 
@@ -11,7 +12,7 @@ const dev = (serial: string, state: Device['state'] = 'device'): Device => ({ se
 describe('lockdown', () => {
   it('closes windows, then turns off Wi-Fi debugging, then disconnects (in that order)', async () => {
     const calls: string[] = []
-    const sessions = { closeAll: vi.fn(() => { calls.push('closeAll') }) } as unknown as Sessions
+    const sessions = { closeAll: vi.fn(() => { calls.push('closeAll') }) } as unknown as Views
     vi.mocked(run).mockImplementation(async (_bin, args) => {
       calls.push(args.join(' '))
       return { code: 0, stdout: '', stderr: '' }
@@ -26,7 +27,7 @@ describe('lockdown', () => {
   })
 
   it('a failing settings put still disconnects and is reported', async () => {
-    const sessions = { closeAll: vi.fn() } as unknown as Sessions
+    const sessions = { closeAll: vi.fn() } as unknown as Views
     vi.mocked(run).mockReset()
     vi.mocked(run)
       .mockResolvedValueOnce({ code: 1, stdout: '', stderr: 'error: device offline' })
@@ -37,7 +38,7 @@ describe('lockdown', () => {
   })
 
   it('a thrown run (timeout) is also reported, disconnect still runs', async () => {
-    const sessions = { closeAll: vi.fn() } as unknown as Sessions
+    const sessions = { closeAll: vi.fn() } as unknown as Views
     vi.mocked(run).mockReset()
     vi.mocked(run)
       .mockRejectedValueOnce(new Error('timeout'))

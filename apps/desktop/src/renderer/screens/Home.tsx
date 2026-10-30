@@ -1,5 +1,8 @@
 import type { AppState } from '../../shared/api'
+import type { Page } from '../Sidebar'
 import { tether } from '../tether'
+
+export const TINTS = ['#FFB59E', '#C7B8FF', '#8FE3D0', '#FFE07A']
 
 function today(): string {
   const d = new Date()
@@ -17,7 +20,9 @@ function lcdMessage(state: AppState): string | null {
   return null
 }
 
-export function Home({ state, ignored, ignore }: { state: AppState; ignored: string[]; ignore: (serialNo: string) => void }) {
+export function Home({ state, go, ignored, ignore }: {
+  state: AppState; go: (p: Page) => void; ignored: string[]; ignore: (serialNo: string) => void
+}) {
   const { device, status } = state
   const ready = device?.state === 'device'
   const link = device ? (device.transport === 'usb' ? 'USB' : 'WI-FI') : '—'
@@ -32,8 +37,8 @@ export function Home({ state, ignored, ignore }: { state: AppState; ignored: str
           <span className="mono tiny muted">{today()}</span>
           <h1 className="headline">Your phone is <span className="accent-text">on the line.</span></h1>
         </div>
-        <button className="key accent tall" disabled={!ready} onClick={() => void tether.openMirror()}>
-          <span className={`led ${state.mirrorOpen ? 'on' : ''}`} />MIRROR
+        <button className="key accent tall" disabled={!ready} onClick={() => go('mirror')}>
+          <span className={`led ${state.openViews.includes('mirror') ? 'on' : ''}`} />MIRROR
         </button>
       </header>
 
@@ -53,10 +58,6 @@ export function Home({ state, ignored, ignore }: { state: AppState; ignored: str
           </div>
         </section>
       ))}
-
-      {state.mirrorError && (
-        <div className="error">MIRROR CLOSED · {state.mirrorError.replace(/^(WARN|ERROR|INFO):\s*/, '').toUpperCase()}</div>
-      )}
 
       <section className="lcd status" aria-label="Phone status">
         {message ? (
@@ -82,6 +83,38 @@ export function Home({ state, ignored, ignore }: { state: AppState; ignored: str
           </>
         )}
       </section>
+
+      <div className="home-row">
+        <section className="channels" aria-labelledby="ch-h">
+          <div className="row between wrap">
+            <h2 id="ch-h" className="card-head">CHANNELS · ONE WINDOW PER APP</h2>
+            <button className="link mono" onClick={() => go('apps')}>ALL APPS ›</button>
+          </div>
+          {state.pins.length ? (
+            <div className="pads">
+              {state.pins.map((p, i) => (
+                <button key={p.pkg} className="pad" disabled={!ready} onClick={() => void tether.openApp(p.pkg, p.name)}>
+                  <span className={`led ${state.openViews.includes(`app:${p.pkg}`) ? 'on' : ''}`} />
+                  <span className="pad-face" style={{ color: TINTS[i % 4] }}>{p.name.charAt(0).toUpperCase()}</span>
+                  <span className="pad-name">{p.name}</span>
+                  <span className="mono tiny muted">CH {i + 1}</span>
+                </button>
+              ))}
+            </div>
+          ) : <span className="mono small muted">PIN APPS FROM THE APPS SCREEN</span>}
+        </section>
+
+        {state.layouts.length > 0 && (
+          <section className="col home-layouts" aria-labelledby="lay-h">
+            <h2 id="lay-h" className="mono tiny muted">LAYOUTS</h2>
+            {state.layouts.map((l, i) => (
+              <button key={i} className="layout-key" disabled={!ready} onClick={() => void tether.launchLayout(i)}>
+                {l.name.toUpperCase()}<span className="mono tiny muted">CTRL ALT {i + 1}</span>
+              </button>
+            ))}
+          </section>
+        )}
+      </div>
     </main>
   )
 }

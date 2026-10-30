@@ -1,9 +1,9 @@
 import type { AppState } from '../shared/api'
 import { tether } from './tether'
 
-export type Page = 'home' | 'security'
+export type Page = 'home' | 'mirror' | 'apps' | 'layouts' | 'security'
 
-const PAGES: [Page, string][] = [['home', 'HOME'], ['security', 'SECURITY']]
+const PAGES: [Page, string][] = [['home', 'HOME'], ['apps', 'APPS'], ['layouts', 'LAYOUTS'], ['security', 'SECURITY']]
 
 export function PowerIcon() {
   return (

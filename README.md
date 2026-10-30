@@ -14,7 +14,7 @@ own PC window and files and clipboard shared both ways.
 
 TETHER is a single app on the PC. **Nothing gets installed on the phone.** It
 builds on [scrcpy](https://github.com/Genymobile/scrcpy) and Android's own
-`adb`:
+`adb`, and shows the phone screen inside its own windows:
 
 ```
 Windows PC                                  Android phone
@@ -22,7 +22,7 @@ Windows PC                                  Android phone
 │ TETHER (Electron tray app)   │            │ adbd (built into        │
 │   └─ @tether/core            │ USB/Wi-Fi  │ Android)                │
 │        ├─ adb  ──────────────┼────────────┼─ scrcpy-server (pushed │
-│        └─ scrcpy windows ────┤            │   per session, removed  │
+│        └─ scrcpy client ─────┤            │   per session, removed  │
 └──────────────────────────────┘            │   afterwards)           │
                                             └─────────────────────────┘
 ```
@@ -46,14 +46,14 @@ Windows PC                                  Android phone
 - Every PC has to be approved on the phone before it can connect.
 - Wireless connections use Android's encrypted (TLS) wireless debugging.
 - Nothing listens on the internet.
-- The app is protected by a PIN or Windows Hello and locks when Windows locks.
+- The app is protected by a PIN and locks when Windows locks or the PC sits idle.
 - A one-click **Lockdown** button disconnects everything.
 
 ## Project layout
 
 ```
 apps/desktop     Electron tray app (UI)
-packages/core    device manager · adb wrapper · scrcpy launcher
+packages/core    device manager · adb wrapper · scrcpy client
 ```
 
 ## Development
