@@ -7,7 +7,7 @@ import { connect, type Socket } from 'node:net'
 import { dirname, join } from 'node:path'
 import { isSerial } from './devices'
 import type { EnginePaths } from './engine'
-import { serverArgs, StreamReader, type ServerOptions } from './protocol'
+import { DeviceReader, serverArgs, StreamReader, type ServerOptions } from './protocol'
 import { run, start } from './run'
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
@@ -44,7 +44,7 @@ export async function removeStaleForwards(adb: string): Promise<number> {
   return stale.length
 }
 
-// Events: 'video' (StreamEvent), 'audio' (StreamEvent), 'log' (server WARN/ERROR line), 'close' (error: string | null, once).
+// Events: 'video' (StreamEvent), 'audio' (StreamEvent), 'device' (DeviceEvent: phone clipboard…), 'log' (server WARN/ERROR line), 'close' (error: string | null, once).
 export class PhoneStream extends EventEmitter {
   private readonly scid = randomInt(0, 0x7fffffff).toString(16).padStart(8, '0')
   private sockets: Socket[] = []
@@ -109,7 +109,16 @@ export class PhoneStream extends EventEmitter {
       socket.on('error', () => undefined) // 'close' follows
       if (kind === 'control') {
         this.control = socket
-        socket.on('data', () => undefined) // device → PC messages (clipboard…) are M4
+        const reader = new DeviceReader()
+        const onData = (d: Buffer) => {
+          try {
+            for (const e of reader.feed(d)) this.emit('device', e)
+          } catch (err) {
+            this.close((err as Error).message)
+          }
+        }
+        if (i === 0 && first.rest.length) onData(first.rest)
+        socket.on('data', onData)
       } else {
         const reader = new StreamReader({ session: kind === 'video' })
         const onData = (d: Buffer) => { for (const e of reader.feed(d)) this.emit(kind, e) }

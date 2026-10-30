@@ -46,7 +46,7 @@ Windows PC                                  Android phone
 - Every PC has to be approved on the phone before it can connect.
 - Wireless connections use Android's encrypted (TLS) wireless debugging.
 - Nothing listens on the internet.
-- The app is protected by a PIN and locks when Windows locks or the PC sits idle.
+- The app is protected by a password (8+ characters) and locks when Windows locks or the PC sits idle.
 - A one-click **Lockdown** button disconnects everything.
 
 ## Project layout

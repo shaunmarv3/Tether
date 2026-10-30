@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { AppState, TetherApi, VideoMsg, ViewId } from '../shared/api'
 
 function listen<T extends unknown[]>(channel: string, cb: (...args: T) => void): () => void {
@@ -12,6 +12,7 @@ const api: TetherApi = {
   onState: (cb) => listen<[AppState]>('tether:state', cb),
   setPin: (pin) => ipcRenderer.invoke('tether:setPin', pin),
   unlock: (pin) => ipcRenderer.invoke('tether:unlock', pin),
+  changePassword: (current, next) => ipcRenderer.invoke('tether:changePassword', current, next),
   installEngine: () => ipcRenderer.invoke('tether:installEngine'),
   openMirror: () => ipcRenderer.invoke('tether:openMirror'),
   trust: (serialNo) => ipcRenderer.invoke('tether:trust', serialNo),
@@ -33,6 +34,26 @@ const api: TetherApi = {
   saveLayout: (name, index) => ipcRenderer.invoke('tether:saveLayout', name, index),
   launchLayout: (index) => ipcRenderer.invoke('tether:launchLayout', index),
   deleteLayout: (index) => ipcRenderer.invoke('tether:deleteLayout', index),
+  listDir: (dir) => ipcRenderer.invoke('tether:listDir', dir),
+  countPlaces: () => ipcRenderer.invoke('tether:countPlaces'),
+  sendFiles: (paths, dir) => ipcRenderer.invoke('tether:sendFiles', paths, dir),
+  previewFile: (path) => ipcRenderer.invoke('tether:previewFile', path),
+  previewStep: (delta) => ipcRenderer.invoke('tether:previewStep', delta),
+  pickAndSend: (dir) => ipcRenderer.invoke('tether:pickAndSend', dir),
+  saveToPc: (paths) => ipcRenderer.invoke('tether:saveToPc', paths),
+  deleteFiles: (paths) => ipcRenderer.invoke('tether:deleteFiles', paths),
+  newFolder: (path) => ipcRenderer.invoke('tether:newFolder', path),
+  installApk: (path) => ipcRenderer.invoke('tether:installApk', path),
+  openSaveFolder: () => ipcRenderer.invoke('tether:openSaveFolder'),
+  pathForFile: (f) => webUtils.getPathForFile(f),
+  copyClip: (id) => ipcRenderer.invoke('tether:copyClip', id),
+  sendClip: (id) => ipcRenderer.invoke('tether:sendClip', id),
+  pasteToPhone: () => ipcRenderer.invoke('tether:pasteToPhone'),
+  clearClips: () => ipcRenderer.invoke('tether:clearClips'),
+  setClipSettings: (s) => ipcRenderer.invoke('tether:setClipSettings', s),
+  screenshot: () => ipcRenderer.invoke('tether:screenshot'),
+  screenOff: () => ipcRenderer.invoke('tether:screenOff'),
+  saveRecording: (data) => ipcRenderer.invoke('tether:saveRecording', data),
 }
 
 contextBridge.exposeInMainWorld('tether', api)

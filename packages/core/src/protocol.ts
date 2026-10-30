@@ -54,6 +54,44 @@ export class StreamReader {
   }
 }
 
+export type DeviceEvent = { type: 'clipboard'; text: string } | { type: 'ack'; seq: number }
+
+// Device → PC messages on the control socket: [0, len u32, utf8] clipboard · [1, seq u64] ack · [2, id u16, len u16, data] uhid.
+export class DeviceReader {
+  private buf = new Uint8Array(0)
+
+  feed(chunk: Uint8Array): DeviceEvent[] {
+    const joined = new Uint8Array(this.buf.length + chunk.length)
+    joined.set(this.buf)
+    joined.set(chunk, this.buf.length)
+    const view = new DataView(joined.buffer)
+    const events: DeviceEvent[] = []
+    let at = 0
+    for (;;) {
+      const left = joined.length - at
+      if (left < 1) break
+      const type = joined[at]
+      if (type === 0) {
+        if (left < 5 || left < 5 + view.getUint32(at + 1)) break
+        const len = view.getUint32(at + 1)
+        events.push({ type: 'clipboard', text: new TextDecoder().decode(joined.subarray(at + 5, at + 5 + len)) })
+        at += 5 + len
+      } else if (type === 1) {
+        if (left < 9) break
+        events.push({ type: 'ack', seq: Number(view.getBigUint64(at + 1)) })
+        at += 9
+      } else if (type === 2) {
+        if (left < 5 || left < 5 + view.getUint16(at + 3)) break
+        at += 5 + view.getUint16(at + 3)
+      } else {
+        throw new Error(`unknown device message ${type}`)
+      }
+    }
+    this.buf = joined.slice(at)
+    return events
+  }
+}
+
 // 'avc1.PPCCLL' from the SPS NAL (type 7) of an Annex-B config packet, for WebCodecs.
 export function codecString(config: Uint8Array): string {
   for (let i = 0; i + 6 < config.length; i++) {
@@ -70,6 +108,7 @@ export interface DisplayOptions {
 }
 export interface ServerOptions {
   scid: string; video: boolean; audio: boolean; control: boolean; keepActive: boolean; powerOn: boolean
+  clipboard: boolean // phone clipboard changes are sent to TETHER
   display: DisplayOptions | null // null = the phone's main display
 }
 
@@ -78,7 +117,7 @@ const isInt = (n: number, min: number, max: number) => Number.isInteger(n) && n 
 export function serverArgs(o: ServerOptions): string[] {
   if (!/^[0-9a-f]{8}$/.test(o.scid)) throw new Error(`bad scid: ${o.scid}`)
   const args = [SERVER_VERSION, `scid=${o.scid}`, 'log_level=info', `video=${o.video}`, `audio=${o.audio}`, `control=${o.control}`,
-    'tunnel_forward=true', 'send_device_meta=false', 'video_codec=h264', 'audio_codec=raw', 'clipboard_autosync=false',
+    'tunnel_forward=true', 'send_device_meta=false', 'video_codec=h264', 'audio_codec=raw', `clipboard_autosync=${o.clipboard}`,
     `keep_active=${o.keepActive}`, `power_on=${o.powerOn}`]
   const d = o.display
   if (d) {
@@ -102,6 +141,7 @@ function position(v: DataView, at: number, x: number, y: number, w: number, h: n
   v.setInt32(at, x); v.setInt32(at + 4, y); v.setUint16(at + 8, w); v.setUint16(at + 10, h)
 }
 const utf8 = new TextEncoder()
+export const CLIPBOARD_MAX = 262_130 // bytes of UTF-8 (scrcpy CLIPBOARD_TEXT_MAX_LENGTH)
 
 export const enc = {
   key(action: 0 | 1, keycode: number): Uint8Array {
@@ -130,6 +170,18 @@ export const enc = {
       return Math.min(0x7fff, Math.round((Math.max(-16, Math.min(16, s)) / 16) * 0x8000))
     }
     return bytes(21, (v) => { v.setUint8(0, 3); position(v, 1, x, y, w, h); v.setInt16(13, fp(hs)); v.setInt16(15, fp(vs)) })
+  },
+  // copyKey: 0 none, 1 copy, 2 cut (pressed on the phone first).
+  getClipboard(copyKey: 0 | 1 | 2): Uint8Array {
+    return Uint8Array.of(8, copyKey)
+  },
+  // seq 0 = no ack. paste = also paste it into the focused phone field.
+  setClipboard(seq: number, text: string, paste: boolean): Uint8Array {
+    const t = utf8.encode(text)
+    if (!t.length || t.length > CLIPBOARD_MAX) throw new Error('bad clipboard length')
+    const b = bytes(14 + t.length, (v) => { v.setUint8(0, 9); v.setBigUint64(1, BigInt(seq)); v.setUint8(9, paste ? 1 : 0); v.setUint32(10, t.length) })
+    b.set(t, 14)
+    return b
   },
   displayPower(on: boolean): Uint8Array {
     return Uint8Array.of(10, on ? 1 : 0)

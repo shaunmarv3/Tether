@@ -154,6 +154,11 @@ export function PhoneView({ view, keys, flex, bare, onInfo }: {
     if (p?.inside) send({ t: 'scroll', x: p.x, y: p.y, w: p.w, h: p.h, hs: clamp(-e.deltaX / 100), vs: clamp(-e.deltaY / 100) })
   }
   const onKey = (action: 0 | 1) => (e: KeyboardEvent<HTMLCanvasElement>) => {
+    if (e.ctrlKey && !e.altKey && e.key.toLowerCase() === 'v') {
+      e.preventDefault()
+      if (action === 0) send({ t: 'paste' }) // the PC clipboard goes into the focused phone field
+      return
+    }
     const code = KEYCODES[e.key]
     if (code !== undefined) {
       e.preventDefault()

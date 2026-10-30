@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { codecString, enc, serverArgs, StreamReader, type ServerOptions } from '../src/protocol'
+import { codecString, DeviceReader, enc, serverArgs, StreamReader, type ServerOptions } from '../src/protocol'
 
 const hex = (s: string) => Uint8Array.from(s.replace(/\s/g, '').match(/../g)!.map((b) => parseInt(b, 16)))
 const toHex = (b: Uint8Array) => Buffer.from(b).toString('hex')
@@ -39,6 +39,26 @@ describe('StreamReader', () => {
   })
 })
 
+describe('DeviceReader', () => {
+  const CLIP = '00 00000005 68656c6c6f' // "hello"
+  it('reads clipboard and ack messages, also split across chunks', () => {
+    const all = hex(CLIP + '01 0000000000000007' + CLIP)
+    const want = [{ type: 'clipboard', text: 'hello' }, { type: 'ack', seq: 7 }, { type: 'clipboard', text: 'hello' }]
+    expect(new DeviceReader().feed(all)).toEqual(want)
+    const r = new DeviceReader()
+    expect([...all].flatMap((b) => r.feed(Uint8Array.of(b)))).toEqual(want)
+  })
+  it('skips uhid output', () => {
+    expect(new DeviceReader().feed(hex('02 0001 0003 aabbcc' + CLIP))).toEqual([{ type: 'clipboard', text: 'hello' }])
+  })
+  it('keeps UTF-8', () => {
+    const t = Buffer.from('é 😀')
+    const b = new Uint8Array(5 + t.length)
+    b.set([0, 0, 0, 0, t.length]); b.set(t, 5)
+    expect(new DeviceReader().feed(b)).toEqual([{ type: 'clipboard', text: 'é 😀' }])
+  })
+})
+
 describe('codecString', () => {
   it('reads profile/constraints/level from the SPS', () => {
     expect(codecString(hex('00000001 67 64 00 28 ac d9'))).toBe('avc1.640028')
@@ -75,6 +95,13 @@ describe('enc', () => {
     expect(toHex(enc.resetVideo())).toBe('11')
     expect(toHex(enc.rotate())).toBe('0b')
   })
+  it('set/get clipboard', () => {
+    expect(toHex(enc.setClipboard(5, 'hi', true))).toBe('09' + '0000000000000005' + '01' + '00000002' + '6869')
+    expect(toHex(enc.getClipboard(0))).toBe('0800')
+    expect(() => enc.setClipboard(0, 'a'.repeat(262_131), false)).toThrow()
+    expect(enc.setClipboard(0, 'a'.repeat(262_130), false).length).toBe(14 + 262_130)
+    expect(() => enc.setClipboard(0, '', false)).toThrow()
+  })
   it('rejects bad values before building bytes', () => {
     expect(() => enc.startApp('a;b')).toThrow()
     expect(() => enc.touch(0, Number.NaN, 0, 10, 10)).toThrow()
@@ -86,7 +113,7 @@ describe('enc', () => {
 })
 
 describe('serverArgs', () => {
-  const base: ServerOptions = { scid: '0a1b2c3d', video: true, audio: false, control: true, keepActive: true, powerOn: true, display: null }
+  const base: ServerOptions = { scid: '0a1b2c3d', video: true, audio: false, control: true, keepActive: true, powerOn: true, clipboard: false, display: null }
 
   it('mirror: main display, keep active, version first', () => {
     const a = serverArgs(base)
@@ -106,6 +133,10 @@ describe('serverArgs', () => {
   it('app window, free shape', () => {
     const a = serverArgs({ ...base, display: { size: [900, 640], dpi: 160, flex: true, keepContent: false, decorations: true, ime: 'local' } })
     expect(a).toEqual(expect.arrayContaining(['new_display=900x640/160', 'flex_display=true', 'vd_destroy_content=true', 'vd_system_decorations=true']))
+  })
+
+  it('clipboard autosync on request', () => {
+    expect(serverArgs({ ...base, video: false, clipboard: true })).toEqual(expect.arrayContaining(['clipboard_autosync=true', 'video=false']))
   })
 
   it('throws on a bad scid or size', () => {

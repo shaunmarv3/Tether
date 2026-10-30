@@ -1,10 +1,16 @@
-import { app, BrowserWindow, globalShortcut, Menu, Notification, powerMonitor, screen, Tray } from 'electron'
-import { join } from 'node:path'
 import {
-  createLog, DeviceTracker, findEngine, getStatus, hashPin, identify, installEngine, listApps, lockdown, pickPhone, PinGate,
-  pruneLogs, readActivity, removeStaleForwards, type Device, type EnginePaths, type PhoneApp, type PhoneLink,
+  app, BrowserWindow, clipboard, dialog, globalShortcut, Menu, Notification, powerMonitor, protocol, screen, shell, Tray,
+} from 'electron'
+import { createReadStream, existsSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { basename, extname, isAbsolute, join } from 'node:path'
+import { Readable } from 'node:stream'
+import {
+  countPlaces, createLog, DeviceTracker, findEngine, getStatus, hashPin, identify, installApk, installEngine, listApps, listDir,
+  lockdown, makeDir, pickPhone, PinGate, pruneLogs, pullFiles, pushFiles, readActivity, removeFiles, removeStaleForwards, screenshot, sdCards,
+  type Device, type EnginePaths, type PhoneApp, type PhoneLink,
 } from '@tether/core'
-import { DEFAULT_APP_OPTIONS, type AppOptions, type AppState, type Bounds } from '../shared/api'
+import { DEFAULT_APP_OPTIONS, type AppOptions, type AppState, type Bounds, type FileOp } from '../shared/api'
+import { ClipLink } from './cliplink'
 import { registerIpc } from './ipc'
 import { loadSettings, paths, saveSettings } from './settings'
 import { trayIcon } from './trayIcon'
@@ -29,16 +35,19 @@ let lastCurrent: string | null = null
 const appsCache = new Map<string, PhoneApp[]>() // by adb serial
 
 const state: AppState = {
-  locked: true, hasPin: !!settings.pinHash, lockReason: null, phoneLinked: false, // locked until a PIN is set or entered
+  locked: true, hasPin: !!settings.pinHash, lockReason: null, phoneLinked: false, // locked until a password is set or entered
+  weakPassword: false,
   engine: 'missing', engineProgress: null, enginePct: null, engineError: null,
   device: null, status: null, unknown: [], known: settings.knownPhones, idleMinutes: settings.idleMinutes,
   openViews: [], pins: settings.pins, appOptions: settings.apps, layouts: settings.layouts,
+  clips: [], clipStats: { synced: 0, wiped: 0 }, clipSettings: settings.clip, clipLink: 'off', fileOp: { busy: false, text: null, error: false },
 }
 
 // The renderer never sees phone data while locked.
 const publicState = (): AppState => state.locked
-  ? { ...state, device: null, status: null, unknown: [], known: [], openViews: [], pins: [], appOptions: {}, layouts: [] }
-  : { ...state }
+  ? { ...state, device: null, status: null, unknown: [], known: [], openViews: [], pins: [], appOptions: {}, layouts: [],
+      clips: [], clipStats: { synced: 0, wiped: 0 }, clipLink: 'off', fileOp: { busy: false, text: null, error: false } }
+  : { ...state, clips: clipLink.clips, clipStats: { ...clipLink.stats }, clipLink: clipLink.state }
 const readyDevice = (): PhoneLink | null => (state.device?.state === 'device' ? state.device : null)
 const linkLabel = (d: PhoneLink) => (d.transport === 'usb' ? 'USB' : 'WI-FI')
 const appOptions = (pkg: string): AppOptions => settings.apps[pkg] ?? DEFAULT_APP_OPTIONS
@@ -56,6 +65,7 @@ function harden(w: BrowserWindow): void {
   w.webContents.on('will-navigate', (e) => e.preventDefault())
 }
 
+const icon = join(__dirname, '../../resources/icon.ico') // out/main → apps/desktop/resources
 const webPreferences = () => ({ preload: join(__dirname, '../preload/index.js'), contextIsolation: true, nodeIntegration: false, sandbox: true })
 
 const views = new Views({
@@ -70,7 +80,7 @@ const views = new Views({
     const size = opts.shape === 'tablet' ? [960, 600] : opts.shape === 'free' ? [900, 640] : [400, 860]
     const w = new BrowserWindow({
       ...(bounds ?? { width: size[0], height: size[1] + TITLE_BAR }), useContentSize: !bounds,
-      show: false, backgroundColor: '#0F0E0D', title: name, alwaysOnTop: opts.onTop, autoHideMenuBar: true,
+      show: false, backgroundColor: '#0F0E0D', title: name, icon, alwaysOnTop: opts.onTop, autoHideMenuBar: true,
       titleBarStyle: 'hidden', titleBarOverlay: { color: '#161513', symbolColor: '#EFECE6', height: TITLE_BAR },
       webPreferences: webPreferences(),
     })
@@ -84,6 +94,14 @@ const views = new Views({
     push()
   },
   log,
+})
+
+const clipLink = new ClipLink({
+  engine: () => engine,
+  serial: () => (state.locked ? null : readyDevice()?.serial ?? null),
+  settings: () => settings.clip,
+  log,
+  onChange: () => push(),
 })
 
 function push(): void {
@@ -136,6 +154,7 @@ function recompute(): void {
   }
   for (const sn of warned) if (!unknown.some((u) => u.serialNo === sn)) warned.delete(sn)
   Object.assign(state, { device: next, unknown, phoneLinked: !!current })
+  clipLink.update()
   push()
   void refreshStatus()
 }
@@ -175,6 +194,9 @@ function openMirror(): void {
 function lock(reason: string): void {
   if (!settings.pinHash) return // no PIN yet: the setup screen is showing anyway
   Object.assign(state, { locked: true, lockReason: reason, status: null })
+  clipLink.update() // sync stops while locked
+  clipLink.clear()
+  closePreviews()
   push()
 }
 
@@ -238,9 +260,207 @@ function onScreen(b: Bounds): Bounds | null {
   return visible ? b : null
 }
 
+// --- Files, screenshot, recording (M4) ---
+
+const saveDir = () => join(app.getPath('downloads'), 'Tether')
+// Phone facts (CMF Phone 1, 2026-10-30); folders a phone doesn't have are left out.
+const PLACES = [
+  { name: 'Camera', dir: '/sdcard/DCIM/Camera' },
+  { name: 'Screenshots', dir: '/sdcard/Pictures/Screenshots' },
+  { name: 'Screenshots', dir: '/sdcard/DCIM/Screenshots' },
+  { name: 'Downloads', dir: '/sdcard/Download' },
+  { name: 'WhatsApp', dir: '/sdcard/Android/media/com.whatsapp/WhatsApp/Media' },
+  { name: 'Documents', dir: '/sdcard/Documents' },
+  { name: 'Music', dir: '/sdcard/Music' },
+]
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 'S'}`
+const isLocalFile = (p: string) => {
+  try {
+    return isAbsolute(p) && statSync(p).isFile()
+  } catch {
+    return false
+  }
+}
+
+function stamp(): string {
+  const d = new Date()
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`
+}
+
+function phone(): { adb: string; serial: string } {
+  const d = readyDevice()
+  if (!engine || !d || state.locked) throw new Error('NO PHONE')
+  return { adb: engine.adb, serial: d.serial }
+}
+
+function setFileOp(op: FileOp): void {
+  state.fileOp = op
+  push()
+}
+
+// One file operation at a time; its outcome shows on the Files LCD.
+async function fileJob(busy: string, job: (adb: string, serial: string) => Promise<string>): Promise<void> {
+  if (state.fileOp.busy) throw new Error('ONE THING AT A TIME')
+  const { adb, serial } = phone()
+  setFileOp({ busy: true, text: busy, error: false })
+  try {
+    setFileOp({ busy: false, text: await job(adb, serial), error: false })
+  } catch (err) {
+    log(`file job failed: ${(err as Error).message}`)
+    setFileOp({ busy: false, text: (err as Error).message.toUpperCase().slice(0, 80), error: true })
+  }
+}
+
+function sendFiles(paths: string[], dir: string): Promise<void> {
+  return fileJob(`SENDING ${plural(paths.length, 'FILE')}`, async (adb, serial) => {
+    if (!paths.every(isLocalFile)) throw new Error('ONLY FILES CAN BE SENT')
+    const { sent, failed } = await pushFiles(adb, serial, paths, dir)
+    if (sent) act(`SENT ${plural(sent, 'FILE')}`)
+    if (failed.length) throw new Error(`SENT ${sent} · ${failed.length} FAILED`)
+    return `SENT ${plural(sent, 'FILE')} · ${placeName(dir)}`
+  })
+}
+
+// '/sdcard/DCIM/Camera/' → 'CAMERA'; a storage root → 'PHONE' / 'SD CARD'.
+function placeName(dir: string): string {
+  if (/^\/(sdcard|storage\/emulated\/0)\/?$/.test(dir)) return 'PHONE'
+  if (/^\/storage\/[0-9A-F]{4}-[0-9A-F]{4}\/?$/.test(dir)) return 'SD CARD'
+  return basename(dir).toUpperCase()
+}
+
+// Preview: the file is copied to %LOCALAPPDATA%\Tether\preview and shown in a small window by Chromium's own
+// viewers (photo, video, audio, PDF incl. password-locked, text). Other kinds open in their Windows app.
+// The copies are deleted when the window closes, on lock and at start/quit.
+const previewDir = join(paths.root, 'preview')
+const PREVIEW_TYPES: Record<string, string> = {
+  '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp', '.bmp': 'image/bmp',
+  '.avif': 'image/avif', '.mp4': 'video/mp4', '.m4v': 'video/mp4', '.mov': 'video/mp4', '.webm': 'video/webm', '.mkv': 'video/webm',
+  '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.aac': 'audio/aac', '.wav': 'audio/wav', '.ogg': 'audio/ogg', '.oga': 'audio/ogg',
+  '.opus': 'audio/ogg', '.flac': 'audio/flac', '.pdf': 'application/pdf',
+  '.txt': 'text/plain; charset=utf-8', '.log': 'text/plain; charset=utf-8', '.md': 'text/plain; charset=utf-8',
+  '.csv': 'text/plain; charset=utf-8', '.json': 'text/plain; charset=utf-8', '.srt': 'text/plain; charset=utf-8',
+}
+// One preview window per open; ‹ › step through the photos/videos/audio of the same folder (newest first,
+// like the Files list). PDFs open alone in Chromium's viewer (a framed window, no TETHER bar).
+interface PreviewWin { dir: string; names: string[]; i: number }
+const previews = new Map<BrowserWindow, PreviewWin>()
+
+function previewKind(name: string): 'image' | 'video' | 'audio' | 'text' | 'pdf' | null {
+  const type = PREVIEW_TYPES[extname(name).toLowerCase()]
+  if (!type) return null
+  return type === 'application/pdf' ? 'pdf' : (type.split('/')[0] as 'image' | 'video' | 'audio' | 'text')
+}
+const isMedia = (name: string) => ['image', 'video', 'audio'].includes(previewKind(name) ?? '')
+
+function clearPreviews(): void {
+  rmSync(previewDir, { recursive: true, force: true })
+}
+
+function closePreviews(): void {
+  for (const w of [...previews.keys()]) w.destroy()
+}
+
+// Serves only files sitting in the preview folder, always with our own content type (never HTML/SVG/script).
+// Byte ranges are answered so the player can seek.
+function servePreview(req: Request): Response {
+  const name = decodeURIComponent(new URL(req.url).pathname.slice(1))
+  const type = PREVIEW_TYPES[extname(name).toLowerCase()]
+  const file = join(previewDir, name)
+  if (!type || !name || name !== basename(name) || !existsSync(file)) return new Response('not found', { status: 404 })
+  const size = statSync(file).size
+  const headers: Record<string, string> = {
+    'content-type': type, 'accept-ranges': 'bytes',
+    'access-control-allow-origin': '*', // the TETHER page reads text files with fetch()
+  }
+  const m = /^bytes=(\d*)-(\d*)$/.exec(req.headers.get('range') ?? '')
+  let start = 0
+  let end = size - 1
+  if (m && (m[1] || m[2])) {
+    start = m[1] ? Number(m[1]) : Math.max(0, size - Number(m[2]))
+    end = m[1] && m[2] ? Math.min(Number(m[2]), size - 1) : size - 1
+    if (start > end || start >= size) return new Response(null, { status: 416, headers: { 'content-range': `bytes */${size}` } })
+    headers['content-range'] = `bytes ${start}-${end}/${size}`
+  }
+  headers['content-length'] = String(end - start + 1)
+  const body = size ? (Readable.toWeb(createReadStream(file, { start, end })) as ReadableStream) : null
+  return new Response(body, { status: headers['content-range'] ? 206 : 200, headers })
+}
+
+function showPreview(w: BrowserWindow, p: PreviewWin): void {
+  const name = p.names[p.i]
+  const kind = previewKind(name)!
+  w.setTitle(name)
+  if (kind === 'pdf') void w.loadURL(`tether-preview://file/${encodeURIComponent(name)}`)
+  else loadRenderer(w, { preview: name, kind, pos: p.names.length > 1 ? `${p.i + 1}/${p.names.length}` : '' })
+}
+
+function openPreview(p: PreviewWin): void {
+  const pdf = previewKind(p.names[p.i]) === 'pdf'
+  const w = new BrowserWindow({
+    width: 960, height: 720, backgroundColor: '#0F0E0D', title: p.names[p.i], icon, autoHideMenuBar: true,
+    ...(pdf ? {} : { titleBarStyle: 'hidden' as const, titleBarOverlay: { color: '#161513', symbolColor: '#EFECE6', height: TITLE_BAR } }),
+    // plugins = Chromium's PDF viewer (off by default: a PDF would turn into a download and close the window)
+    webPreferences: { ...webPreferences(), plugins: true, autoplayPolicy: 'no-user-gesture-required' },
+  })
+  harden(w)
+  previews.set(w, p)
+  w.on('page-title-updated', (e) => e.preventDefault()) // keep the file name as the title
+  w.on('closed', () => {
+    previews.delete(w)
+    rmSync(join(previewDir, p.names[p.i]), { force: true })
+  })
+  showPreview(w, p)
+}
+
+function previewFile(remote: string): Promise<void> {
+  const name = basename(remote)
+  const dir = remote.slice(0, remote.length - name.length)
+  return fileJob(`OPENING ${name.toUpperCase()}`, async (adb, serial) => {
+    mkdirSync(previewDir, { recursive: true })
+    const { failed } = await pullFiles(adb, serial, [remote], previewDir)
+    if (failed.length) throw new Error(`COULDN'T COPY ${name}`)
+    if (!previewKind(name)) {
+      const error = await shell.openPath(join(previewDir, name))
+      if (error) throw new Error(`NO APP ON THIS PC OPENS ${extname(name).toUpperCase() || 'THIS FILE'}`)
+      return `OPENED ON PC · ${name.toUpperCase()}`
+    }
+    let names = [name]
+    if (isMedia(name)) {
+      const siblings = (await listDir(adb, serial, dir).catch(() => []))
+        .filter((e) => !e.dir && !e.name.startsWith('.') && isMedia(e.name))
+        .sort((a, b) => b.mtime.localeCompare(a.mtime))
+        .map((e) => e.name)
+      if (siblings.includes(name)) names = siblings
+    }
+    openPreview({ dir, names, i: names.indexOf(name) })
+    return `OPENED ${name.toUpperCase()}`
+  })
+}
+
+// ‹ › in a preview window: copy the next file over, drop the old copy, show it.
+async function stepPreview(w: BrowserWindow, delta: 1 | -1): Promise<void> {
+  const p = previews.get(w)
+  if (!p || p.names.length < 2) return
+  const { adb, serial } = phone()
+  const i = (p.i + delta + p.names.length) % p.names.length
+  const { failed } = await pullFiles(adb, serial, [p.dir + p.names[i]], previewDir)
+  if (failed.length) throw new Error(`COULDN'T COPY ${p.names[i]}`)
+  if (previews.get(w) !== p || w.isDestroyed()) return void rmSync(join(previewDir, p.names[i]), { force: true })
+  rmSync(join(previewDir, p.names[p.i]), { force: true })
+  p.i = i
+  showPreview(w, p)
+}
+
+function notifySaved(body: string, file: string): void {
+  const n = new Notification({ title: 'TETHER', body, icon })
+  n.on('click', () => shell.showItemInFolder(file))
+  n.show()
+}
+
 function createWindow(): BrowserWindow {
   const w = new BrowserWindow({
-    width: 1180, height: 760, show: false, backgroundColor: '#0F0E0D', title: 'TETHER', autoHideMenuBar: true,
+    width: 1180, height: 760, show: false, backgroundColor: '#0F0E0D', title: 'TETHER', icon, autoHideMenuBar: true,
     webPreferences: webPreferences(),
   })
   harden(w)
@@ -261,6 +481,7 @@ function showWindow(): void {
 }
 
 app.enableSandbox()
+protocol.registerSchemesAsPrivileged([{ scheme: 'tether-preview', privileges: { standard: true, secure: true, stream: true, supportFetchAPI: true } }])
 if (!app.requestSingleInstanceLock()) app.quit()
 else {
   app.on('second-instance', showWindow)
@@ -270,11 +491,16 @@ else {
     views.closeAll()
     globalShortcut.unregisterAll()
     tracker?.stop()
+    clipLink.stop()
+    closePreviews()
+    clearPreviews()
     for (const t of timers) clearInterval(t)
     timers = []
   })
   void app.whenReady().then(() => {
     pruneLogs(paths.logs)
+    clearPreviews()
+    protocol.handle('tether-preview', servePreview)
     log('start')
     win = createWindow()
     tray = new Tray(trayIcon(false))
@@ -296,7 +522,8 @@ else {
         saveSettings(settings)
         gate = new PinGate(settings.pinHash)
         Object.assign(state, { hasPin: true, locked: false })
-        act('PIN SET')
+        act('PASSWORD SET')
+        clipLink.update()
         push()
         void refreshStatus()
         return true
@@ -305,12 +532,25 @@ else {
         const result = gate ? gate.tryUnlock(pin) : 'wrong'
         log(`unlock: ${result}`)
         if (result === 'ok') {
-          Object.assign(state, { locked: false, lockReason: null })
-          act('UNLOCKED · PIN')
+          Object.assign(state, { locked: false, lockReason: null, weakPassword: pin.length < 8 })
+          act('UNLOCKED · PASSWORD')
+          clipLink.update()
           push()
           void refreshStatus()
         }
         return result
+      },
+      changePassword: (current, next) => {
+        const result = gate ? gate.tryUnlock(current) : 'wrong'
+        log(`change password: ${result}`)
+        if (result !== 'ok') return result
+        settings.pinHash = hashPin(next)
+        saveSettings(settings)
+        gate = new PinGate(settings.pinHash)
+        state.weakPassword = false
+        act('PASSWORD CHANGED')
+        push()
+        return 'ok'
       },
       installEngine: doInstallEngine,
       openMirror,
@@ -345,7 +585,10 @@ else {
       isViewSender: (view, sender) => views.isSender(view, sender),
       attach: (view, sender) => views.attach(view, sender),
       detach: (view) => views.detach(view),
-      input: (view, e) => views.input(view, e),
+      input: (view, e) => {
+        if (e.t !== 'paste') return views.input(view, e)
+        void clipboard.readText().then((text) => views.paste(view, text), () => undefined)
+      },
       listApps: async () => {
         const phone = readyDevice()
         if (!engine || !phone) return []
@@ -381,6 +624,77 @@ else {
       deleteLayout: (index) => {
         settings.layouts = settings.layouts.filter((_, i) => i !== index)
         saveAppSettings()
+      },
+      listDir: (dir) => listDir(phone().adb, phone().serial, dir),
+      countPlaces: async () => {
+        const { adb, serial } = phone()
+        const cards = await sdCards(adb, serial)
+        const all = [...PLACES, ...cards.map((dir, i) => ({ name: cards.length > 1 ? `SD card ${i + 1}` : 'SD card', dir }))]
+        const counts = await countPlaces(adb, serial, all.map((p) => p.dir))
+        const found = all.map((p, i) => ({ ...p, count: counts[i] })).filter((p) => p.count !== null)
+        return found.filter((p, i) => found.findIndex((q) => q.name === p.name) === i)
+      },
+      sendFiles,
+      previewFile,
+      isPreviewSender: (sender) => [...previews.keys()].some((w) => w.webContents === sender),
+      previewStep: (sender, delta) => {
+        const w = [...previews.keys()].find((x) => x.webContents === sender)
+        return w ? stepPreview(w, delta) : Promise.resolve()
+      },
+      pickAndSend: async (dir) => {
+        const r = await dialog.showOpenDialog(win!, { title: 'Send to phone', properties: ['openFile', 'multiSelections'] })
+        if (!r.canceled && r.filePaths.length) await sendFiles(r.filePaths, dir)
+      },
+      saveToPc: (paths) => fileJob(`SAVING ${plural(paths.length, 'FILE')}`, async (adb, serial) => {
+        mkdirSync(saveDir(), { recursive: true })
+        const { saved, failed } = await pullFiles(adb, serial, paths, saveDir())
+        if (saved) act(`SAVED ${plural(saved, 'FILE')}`)
+        if (failed.length) throw new Error(`SAVED ${saved} · ${failed.length} FAILED`)
+        return `SAVED ${saved} · OPEN FOLDER`
+      }),
+      deleteFiles: (paths) => fileJob(`DELETING ${plural(paths.length, 'FILE')}`, async (adb, serial) => {
+        await removeFiles(adb, serial, paths)
+        act(`DELETED ${plural(paths.length, 'FILE')}`)
+        return `DELETED ${plural(paths.length, 'FILE')}`
+      }),
+      newFolder: (path) => fileJob('MAKING FOLDER', async (adb, serial) => {
+        await makeDir(adb, serial, path)
+        return 'FOLDER MADE'
+      }),
+      installApk: (path) => fileJob(`INSTALLING ${basename(path).toUpperCase()}`, async (adb, serial) => {
+        if (!isLocalFile(path)) throw new Error('APK NOT FOUND')
+        await installApk(adb, serial, path)
+        act(`INSTALLED ${basename(path)}`)
+        return `INSTALLED ${basename(path).toUpperCase()}`
+      }),
+      openSaveFolder: async () => {
+        mkdirSync(saveDir(), { recursive: true })
+        await shell.openPath(saveDir())
+      },
+      copyClip: (id) => clipLink.copyClip(id),
+      sendClip: (id) => clipLink.sendClip(id),
+      pasteToPhone: () => clipLink.pasteToPhone(),
+      clearClips: () => clipLink.clear(),
+      setClipSettings: (s) => {
+        if (s.sync !== settings.clip.sync) act(`CLIPBOARD SYNC ${s.sync ? 'ON' : 'OFF'}`)
+        settings.clip = s
+        saveSettings(settings)
+        state.clipSettings = s
+        push()
+      },
+      screenshot: async () => {
+        const { adb, serial } = phone()
+        mkdirSync(saveDir(), { recursive: true })
+        const file = join(saveDir(), `Screenshot_${stamp()}.png`)
+        await screenshot(adb, serial, file)
+        notifySaved('SCREENSHOT SAVED', file)
+      },
+      screenOff: () => clipLink.screenOff(),
+      saveRecording: async (data) => {
+        mkdirSync(saveDir(), { recursive: true })
+        const file = join(saveDir(), `Recording_${stamp()}.mp4`)
+        writeFileSync(file, Buffer.from(data))
+        notifySaved('RECORDING SAVED', file)
       },
     })
     const found = findEngine(paths.engine, process.env.TETHER_ENGINE_DIR)

@@ -24,7 +24,7 @@ function appServerOptions(o: AppOptions): Omit<ServerOptions, 'scid'> {
   const size: [number, number] | null = o.shape === 'tablet' ? [1920, 1200] : o.shape === 'free' ? [900, 640] : null
   const dpi = o.shape === 'tablet' ? 240 : o.shape === 'free' ? 160 : null
   return {
-    video: true, audio: false, control: true, keepActive: false, powerOn: false,
+    video: true, audio: false, control: true, keepActive: false, powerOn: false, clipboard: false,
     display: { size, dpi, flex: o.shape === 'free', keepContent: o.keepRunning, decorations: !o.hideStatusBar, ime: o.pcKeyboard ? 'hide' : 'local' },
   }
 }
@@ -58,7 +58,7 @@ export class Views {
 
     const pkg = pkgOf(id)
     const opts: Omit<ServerOptions, 'scid'> = pkg === null
-      ? { video: true, audio: false, control: true, keepActive: true, powerOn: true, display: null }
+      ? { video: true, audio: false, control: true, keepActive: true, powerOn: true, clipboard: false, display: null }
       : appServerOptions(this.deps.appOptions(pkg))
     const stream = new PhoneStream(engine, phone.serial, opts)
     const entry: Live = { stream, sender, landscape: null }
@@ -109,7 +109,7 @@ export class Views {
 
   input(id: ViewId, e: InputEvent): void {
     const entry = this.live.get(id)
-    if (!entry) return
+    if (!entry || e.t === 'paste') return // paste: see paste()
     try {
       const msg = e.t === 'touch' ? enc.touch(e.action, e.x, e.y, e.w, e.h)
         : e.t === 'scroll' ? enc.scroll(e.x, e.y, e.w, e.h, e.hs, e.vs)
@@ -121,6 +121,17 @@ export class Views {
       if (!entry.stream.send(msg)) this.deps.log(`input dropped: ${id} has no control link yet`)
     } catch (err) {
       this.deps.log(`input dropped: ${(err as Error).message}`)
+    }
+  }
+
+  // Ctrl+V on a phone view: the PC text goes to the phone clipboard and is pasted into the focused field.
+  paste(id: ViewId, text: string): void {
+    const entry = this.live.get(id)
+    if (!entry || !text) return
+    try {
+      entry.stream.send(enc.setClipboard(0, text, true))
+    } catch (err) {
+      this.deps.log(`paste dropped: ${(err as Error).message}`)
     }
   }
 
@@ -184,7 +195,7 @@ export class Views {
     }
     if (this.audio || this.audioFailed) return
     const stream = new PhoneStream(this.deps.engine()!, phone.serial,
-      { video: false, audio: true, control: false, keepActive: false, powerOn: false, display: null })
+      { video: false, audio: true, control: false, keepActive: false, powerOn: false, clipboard: false, display: null })
     this.audio = stream
     stream.on('audio', (e: StreamEvent) => {
       if (e.type === 'codec' && e.id !== RAW) stream.close(e.id === 0 ? 'phone audio not available' : 'audio config error')

@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <!-- TETHER app icon: a dark hardware plate; PC and phone as two nodes on one cable, an amber packet on the line. -->
+  <defs>
+    <linearGradient id="plate" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#262421"/>
+      <stop offset="1" stop-color="#121110"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#FFB000" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#FFB000" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#plate)"/>
+  <rect x="9" y="9" width="238" height="238" rx="55" fill="none" stroke="#3A3731" stroke-width="2"/>
+  <path d="M60 10.5h136" stroke="#FFFFFF" stroke-opacity="0.08" stroke-width="2" stroke-linecap="round"/>
+  <g fill="#2B2925">
+    <circle cx="44" cy="44" r="6"/><circle cx="212" cy="44" r="6"/><circle cx="44" cy="212" r="6"/><circle cx="212" cy="212" r="6"/>
+  </g>
+  <circle cx="68" cy="188" r="30" fill="none" stroke="#D4FF3A" stroke-width="18"/>
+  <circle cx="188" cy="68" r="30" fill="none" stroke="#D4FF3A" stroke-width="18"/>
+  <path d="M94 162C131 150 103 92 162 94" fill="none" stroke="#EFECE6" stroke-width="18" stroke-linecap="round"/>
+  <circle cx="120" cy="123" r="30" fill="url(#glow)"/>
+  <circle cx="120" cy="123" r="13" fill="#FFB000"/>
+</svg>

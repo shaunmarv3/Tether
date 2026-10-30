@@ -1,8 +1,15 @@
 // Phone sound: raw 16-bit stereo PCM at 48 kHz from the audio stream, played as it arrives.
 import { tether } from './tether'
 
+let tap: MediaStreamAudioDestinationNode | null = null
+
+// The same sound as a MediaStream, for recording the Mirror page. Null while no audio is playing.
+export const phoneAudioStream = (): MediaStream | null => tap?.stream ?? null
+
 export function playPhoneAudio(): () => void {
   const ctx = new AudioContext({ sampleRate: 48000, latencyHint: 'interactive' })
+  const out = ctx.createMediaStreamDestination()
+  tap = out
   let cursor = 0
   const off = tether.onAudio((pcm) => {
     const frames = Math.floor(pcm.byteLength / 4)
@@ -22,11 +29,13 @@ export function playPhoneAudio(): () => void {
     const src = ctx.createBufferSource()
     src.buffer = buf
     src.connect(ctx.destination)
+    src.connect(out)
     src.start(cursor)
     cursor += buf.duration
   })
   return () => {
     off()
+    if (tap === out) tap = null
     void ctx.close()
   }
 }

@@ -1,5 +1,17 @@
+import { mkdtempSync, readFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { run } from '../src/run'
+import { run, runToFile } from '../src/run'
+
+describe('runToFile', () => {
+  it('writes binary stdout byte-exact', async () => {
+    const file = join(mkdtempSync(join(tmpdir(), 'tether-')), 'out.bin')
+    const r = await runToFile(process.execPath, ['-e', 'process.stdout.write(Buffer.from([0, 255, 10]))'], file)
+    expect(r.code).toBe(0)
+    expect([...readFileSync(file)]).toEqual([0, 255, 10])
+  })
+})
 
 describe('run', () => {
   it('passes args literally, no shell', async () => {

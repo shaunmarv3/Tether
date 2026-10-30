@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import type { Activity, AppState, IdleMinutes } from '../../shared/api'
 import { PowerIcon } from '../Sidebar'
 import { tether } from '../tether'
+import { MIN_PASSWORD } from './Lock'
 
 const IDLE: [IdleMinutes, string][] = [[0, 'OFF'], [5, '5 MIN'], [10, '10 MIN'], [30, '30 MIN']]
 
@@ -17,6 +18,44 @@ function Toggle({ label, note }: { label: string; note: string }) {
       </span>
       <span className="switch on" role="img" aria-label="On" />
     </div>
+  )
+}
+
+function PasswordCard({ weak }: { weak: boolean }) {
+  const [form, setForm] = useState({ current: '', next: '', again: '' })
+  const [msg, setMsg] = useState<{ text: string; error: boolean } | null>(null)
+  const field = (k: keyof typeof form) => ({
+    value: form[k], onChange: (e: { target: { value: string } }) => { setForm({ ...form, [k]: e.target.value }); setMsg(null) },
+  })
+
+  async function submit(e: FormEvent) {
+    e.preventDefault()
+    if (form.next.length < MIN_PASSWORD) return setMsg({ text: `NEW PASSWORD IS ${MIN_PASSWORD}+ CHARACTERS`, error: true })
+    if (form.next !== form.again) return setMsg({ text: "NEW PASSWORDS DON'T MATCH", error: true })
+    if (form.next === form.current) return setMsg({ text: 'PICK A DIFFERENT PASSWORD', error: true })
+    if (form.current.length < 4) return setMsg({ text: 'WRONG CURRENT PASSWORD', error: true })
+    const result = await tether.changePassword(form.current, form.next)
+    if (result === 'ok') {
+      setForm({ current: '', next: '', again: '' })
+      setMsg({ text: 'PASSWORD CHANGED', error: false })
+    } else setMsg({ text: result === 'wait' ? 'TOO MANY TRIES · WAIT 30 S' : 'WRONG CURRENT PASSWORD', error: true })
+  }
+
+  return (
+    <form className="card" aria-labelledby="pw-h" onSubmit={submit}>
+      <h2 id="pw-h" className="card-head">PASSWORD</h2>
+      {weak && <span className="mono tiny amber-text">YOU STILL USE AN OLD SHORT PIN · SET A PASSWORD OF {MIN_PASSWORD}+ CHARACTERS</span>}
+      <label className="mono tiny muted" htmlFor="pw-cur">CURRENT</label>
+      <input id="pw-cur" className="field pass-field small-field" type="password" maxLength={64} autoComplete="off" {...field('current')} />
+      <label className="mono tiny muted" htmlFor="pw-new">NEW · {MIN_PASSWORD}+ CHARACTERS</label>
+      <input id="pw-new" className="field pass-field small-field" type="password" maxLength={64} autoComplete="off" {...field('next')} />
+      <label className="mono tiny muted" htmlFor="pw-again">NEW AGAIN</label>
+      <input id="pw-again" className="field pass-field small-field" type="password" maxLength={64} autoComplete="off" {...field('again')} />
+      <div className="row between wrap">
+        <span className={`mono tiny ${msg?.error ? 'danger-text' : 'accent-text'}`} role="status">{msg?.text}</span>
+        <button className="key" type="submit" disabled={!form.current || !form.next}>CHANGE PASSWORD</button>
+      </div>
+    </form>
   )
 }
 
@@ -59,20 +98,23 @@ export function Security({ state }: { state: AppState }) {
       </div>
 
       <div className="cards top">
-        <section className="card" aria-labelledby="lock-h">
-          <h2 id="lock-h" className="card-head">APP LOCK</h2>
-          <Toggle label="Lock when Windows locks" note="ALWAYS ON · CLOSES PHONE WINDOWS" />
-          <Toggle label="Warn me about unknown devices" note="ALWAYS ON" />
-          <div className="col idle">
-            <span className="mono tiny muted">AUTO-LOCK WHEN IDLE</span>
-            <div className="segments" role="group" aria-label="Auto-lock when idle">
-              {IDLE.map(([m, label]) => (
-                <button key={m} className={`segment ${state.idleMinutes === m ? 'on' : ''}`} aria-pressed={state.idleMinutes === m}
-                  onClick={() => void tether.setIdle(m)}>{label}</button>
-              ))}
+        <div className="col stack">
+          <section className="card" aria-labelledby="lock-h">
+            <h2 id="lock-h" className="card-head">APP LOCK</h2>
+            <Toggle label="Lock when Windows locks" note="ALWAYS ON · CLOSES PHONE WINDOWS" />
+            <Toggle label="Warn me about unknown devices" note="ALWAYS ON" />
+            <div className="col idle">
+              <span className="mono tiny muted">AUTO-LOCK WHEN IDLE</span>
+              <div className="segments" role="group" aria-label="Auto-lock when idle">
+                {IDLE.map(([m, label]) => (
+                  <button key={m} className={`segment ${state.idleMinutes === m ? 'on' : ''}`} aria-pressed={state.idleMinutes === m}
+                    onClick={() => void tether.setIdle(m)}>{label}</button>
+                ))}
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+          <PasswordCard weak={state.weakPassword} />
+        </div>
 
         <div className="col stack">
           <section className="card" aria-labelledby="dev-h">

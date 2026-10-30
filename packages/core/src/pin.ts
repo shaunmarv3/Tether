@@ -1,8 +1,16 @@
-// App-lock PIN: scrypt hash with a random salt, plus a try limiter.
+// App-lock password: scrypt hash with a random salt, plus a try limiter.
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
 
-export function isPin(s: unknown): s is string {
-  return typeof s === 'string' && /^\d{4,8}$/.test(s)
+const noControl = (s: string) => !/[\u0000-\u001f\u007f]/.test(s)
+
+// A new or changed password: 8-64 characters, any kind.
+export function isPassword(s: unknown): s is string {
+  return typeof s === 'string' && s.length >= 8 && s.length <= 64 && noControl(s)
+}
+
+// What unlock accepts: also the old 4-8 digit PINs set before passwords.
+export function isSecret(s: unknown): s is string {
+  return typeof s === 'string' && s.length >= 4 && s.length <= 64 && noControl(s)
 }
 
 export function hashPin(pin: string): string {

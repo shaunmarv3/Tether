@@ -1,9 +1,11 @@
 import type { AppState } from '../shared/api'
-import { tether } from './tether'
+import { Logo } from './Logo'
 
-export type Page = 'home' | 'mirror' | 'apps' | 'layouts' | 'security'
+export type Page = 'home' | 'mirror' | 'apps' | 'files' | 'clipboard' | 'layouts' | 'security'
 
-const PAGES: [Page, string][] = [['home', 'HOME'], ['apps', 'APPS'], ['layouts', 'LAYOUTS'], ['security', 'SECURITY']]
+const PAGES: [Page, string][] = [
+  ['home', 'HOME'], ['apps', 'APPS'], ['files', 'FILES'], ['clipboard', 'CLIPBOARD'], ['layouts', 'LAYOUTS'], ['security', 'SECURITY'],
+]
 
 export function PowerIcon() {
   return (
@@ -24,11 +26,7 @@ export function Sidebar({ state, page, go }: { state: AppState; page: Page; go: 
   return (
     <aside className="sidebar">
       <div className="brand">
-        <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true">
-          <circle cx="6" cy="22" r="3.5" stroke="var(--accent)" strokeWidth="2" />
-          <circle cx="22" cy="6" r="3.5" stroke="var(--accent)" strokeWidth="2" />
-          <path d="M8.6 19.4C13 18 9.5 10.5 19.4 8.6" stroke="var(--text)" strokeWidth="2" strokeLinecap="round" />
-        </svg>
+        <Logo />
         <span className="wordmark big">TETHER</span>
       </div>
 
@@ -48,11 +46,6 @@ export function Sidebar({ state, page, go }: { state: AppState; page: Page; go: 
           </button>
         ))}
       </nav>
-
-      <div className="grow" />
-      <button className="nav-key lockdown-key" onClick={() => void tether.lockdown()}>
-        <span className="row"><PowerIcon />LOCKDOWN</span>
-      </button>
     </aside>
   )
 }

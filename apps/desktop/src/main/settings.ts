@@ -2,7 +2,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { KnownPhone } from '@tether/core'
-import type { AppOptions, IdleMinutes, Layout, Pin } from '../shared/api'
+import { DEFAULT_CLIP_SETTINGS, type AppOptions, type ClipSettings, type IdleMinutes, type Layout, type Pin } from '../shared/api'
 
 const root = join(process.env.LOCALAPPDATA ?? join(process.env.USERPROFILE ?? '.', 'AppData', 'Local'), 'Tether')
 
@@ -15,11 +15,11 @@ export const paths = {
 
 export interface Settings {
   pinHash?: string; knownPhones: KnownPhone[]; idleMinutes: IdleMinutes
-  pins: Pin[]; apps: Record<string, AppOptions>; layouts: Layout[]
+  pins: Pin[]; apps: Record<string, AppOptions>; layouts: Layout[]; clip: ClipSettings
 }
 
 export function loadSettings(): Settings {
-  const defaults: Settings = { knownPhones: [], idleMinutes: 10, pins: [], apps: {}, layouts: [] }
+  const defaults: Settings = { knownPhones: [], idleMinutes: 10, pins: [], apps: {}, layouts: [], clip: DEFAULT_CLIP_SETTINGS }
   if (!existsSync(paths.settings)) return defaults
   try {
     return { ...defaults, ...(JSON.parse(readFileSync(paths.settings, 'utf8')) as Partial<Settings>) }

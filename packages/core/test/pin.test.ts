@@ -1,13 +1,22 @@
 import { describe, expect, it } from 'vitest'
-import { hashPin, isPin, PinGate, verifyPin } from '../src/pin'
+import { hashPin, isPassword, isSecret, PinGate, verifyPin } from '../src/pin'
 
-describe('isPin', () => {
-  it('accepts 4-8 digits', () => {
-    expect(isPin('1234')).toBe(true)
-    expect(isPin('12345678')).toBe(true)
+describe('isPassword (new or changed)', () => {
+  it('accepts 8-64 characters of any kind', () => {
+    for (const p of ['12345678', 'correct horse', 'Ab$9 xyz', 'a'.repeat(64)]) expect(isPassword(p), p).toBe(true)
   })
-  it('rejects everything else', () => {
-    for (const p of ['123', '123456789', '12a4', 1234, null]) expect(isPin(p)).toBe(false)
+  it('rejects short, long, control chars, non-strings', () => {
+    for (const p of ['1234567', 'a'.repeat(65), 'abc\ndefgh', 12345678, null]) expect(isPassword(p), String(p)).toBe(false)
+  })
+})
+
+describe('isSecret (what unlock accepts)', () => {
+  it('still takes an old 4-digit PIN', () => {
+    expect(isSecret('1234')).toBe(true)
+    expect(isSecret('correct horse')).toBe(true)
+  })
+  it('rejects too short or bad input', () => {
+    for (const p of ['123', 'a'.repeat(65), 'ab\u0000cd', 1234]) expect(isSecret(p), String(p)).toBe(false)
   })
 })
 

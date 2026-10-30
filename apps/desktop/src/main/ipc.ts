@@ -2,14 +2,15 @@
 import { ipcMain, type BrowserWindow, type IpcMainEvent, type IpcMainInvokeEvent, type WebContents } from 'electron'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { isPackage, isPin, isSerial, type PhoneApp } from '@tether/core'
-import type { Activity, AppOptions, AppState, IdleMinutes, InputEvent, ViewId } from '../shared/api'
+import { isDevicePath, isPackage, isPassword, isSecret, isSerial, type PhoneApp, type RemoteEntry } from '@tether/core'
+import type { Activity, AppOptions, AppState, ClipSettings, IdleMinutes, InputEvent, Place, ViewId } from '../shared/api'
 
 export interface Handlers {
   getState(): AppState
   isLocked(): boolean
   setPin(pin: string): boolean
   unlock(pin: string): 'ok' | 'wrong' | 'wait'
+  changePassword(current: string, next: string): 'ok' | 'wrong' | 'wait'
   installEngine(): Promise<void>
   openMirror(): void
   trust(serialNo: string): void
@@ -29,6 +30,26 @@ export interface Handlers {
   saveLayout(name: string, index: number | null): void
   launchLayout(index: number): void
   deleteLayout(index: number): void
+  listDir(dir: string): Promise<RemoteEntry[]>
+  countPlaces(): Promise<Place[]>
+  sendFiles(paths: string[], dir: string): Promise<void>
+  previewFile(path: string): Promise<void>
+  isPreviewSender(sender: WebContents): boolean
+  previewStep(sender: WebContents, delta: 1 | -1): Promise<void>
+  pickAndSend(dir: string): Promise<void>
+  saveToPc(paths: string[]): Promise<void>
+  deleteFiles(paths: string[]): Promise<void>
+  newFolder(path: string): Promise<void>
+  installApk(path: string): Promise<void>
+  openSaveFolder(): Promise<void>
+  copyClip(id: number): Promise<void>
+  sendClip(id: number): void
+  pasteToPhone(): Promise<void>
+  clearClips(): void
+  setClipSettings(s: ClipSettings): void
+  screenshot(): Promise<void>
+  screenOff(): void
+  saveRecording(data: ArrayBuffer): Promise<void>
 }
 
 const isIdle = (m: unknown): m is IdleMinutes => m === 0 || m === 5 || m === 10 || m === 30
@@ -38,6 +59,16 @@ const isName = (s: unknown): s is string => typeof s === 'string' && s.trim().le
 const isLayoutIndex = (i: unknown): i is number => Number.isInteger(i) && (i as number) >= 0 && (i as number) <= 8
 const isBool = (b: unknown) => typeof b === 'boolean'
 const isNum = (n: unknown, min: number, max: number) => typeof n === 'number' && Number.isFinite(n) && n >= min && n <= max
+
+// Local paths are checked again in main (absolute, an existing file) before adb sees them.
+const isLocalPath = (p: unknown): p is string => typeof p === 'string' && p.length > 0 && p.length <= 1024 && !/[\u0000-\u001f]/.test(p)
+const isList = <T>(a: unknown, ok: (x: unknown) => x is T, max = 500): a is T[] => Array.isArray(a) && a.length > 0 && a.length <= max && a.every(ok)
+const isClipId = (n: unknown): n is number => Number.isInteger(n) && (n as number) > 0
+function isClipSettings(o: unknown): o is ClipSettings {
+  const c = o as ClipSettings
+  return typeof o === 'object' && o !== null && isBool(c.sync) && isBool(c.hideCodes) && isBool(c.keepOutOfHistory) &&
+    [30, 60, 120].includes(c.wipeSeconds)
+}
 
 function isAppOptions(o: unknown): o is AppOptions {
   const a = o as AppOptions
@@ -56,7 +87,7 @@ function isInput(e: unknown): e is InputEvent {
     case 'key': return (i.action === 0 || i.action === 1) && Number.isInteger(i.keycode) && isNum(i.keycode, 0, 400)
     case 'text': return typeof i.text === 'string' && i.text.length > 0 && i.text.length <= 300
     case 'resize': return isNum(i.w, 2, 8192) && isNum(i.h, 2, 8192)
-    case 'rotate': case 'reset': return true
+    case 'rotate': case 'reset': case 'paste': return true
     default: return false
   }
 }
@@ -78,8 +109,11 @@ export function registerIpc(win: BrowserWindow, h: Handlers): void {
   const bad = (what: string) => { throw new Error(`blocked: bad ${what}`) }
 
   ipcMain.handle('tether:getState', (e) => { guard(e, false); return h.getState() })
-  ipcMain.handle('tether:setPin', (e, pin: unknown) => { guard(e, false); return isPin(pin) && h.setPin(pin) })
-  ipcMain.handle('tether:unlock', (e, pin: unknown) => { guard(e, false); return isPin(pin) ? h.unlock(pin) : 'wrong' })
+  ipcMain.handle('tether:setPin', (e, pin: unknown) => { guard(e, false); return isPassword(pin) && h.setPin(pin) })
+  ipcMain.handle('tether:unlock', (e, pin: unknown) => { guard(e, false); return isSecret(pin) ? h.unlock(pin) : 'wrong' })
+  ipcMain.handle('tether:changePassword', (e, current: unknown, next: unknown) => {
+    guard(e, true); if (!isSecret(current) || !isPassword(next)) bad('password'); return h.changePassword(current as string, next as string)
+  })
   ipcMain.handle('tether:installEngine', (e) => { guard(e, true); return h.installEngine() })
   ipcMain.handle('tether:openMirror', (e) => { guard(e, true); h.openMirror() })
   ipcMain.handle('tether:trust', (e, sn: unknown) => { guard(e, true); if (!isSerialNo(sn)) bad('serial'); h.trust(sn as string) })
@@ -114,4 +148,35 @@ export function registerIpc(win: BrowserWindow, h: Handlers): void {
   })
   ipcMain.handle('tether:launchLayout', (e, i: unknown) => { guard(e, true); if (!isLayoutIndex(i)) bad('layout'); h.launchLayout(i as number) })
   ipcMain.handle('tether:deleteLayout', (e, i: unknown) => { guard(e, true); if (!isLayoutIndex(i)) bad('layout'); h.deleteLayout(i as number) })
+
+  ipcMain.handle('tether:listDir', (e, dir: unknown) => { guard(e, true); if (!isDevicePath(dir)) bad('path'); return h.listDir(dir as string) })
+  ipcMain.handle('tether:countPlaces', (e) => { guard(e, true); return h.countPlaces() })
+  ipcMain.handle('tether:sendFiles', (e, paths: unknown, dir: unknown) => {
+    guard(e, true); if (!isList(paths, isLocalPath) || !isDevicePath(dir)) bad('path'); return h.sendFiles(paths as string[], dir as string)
+  })
+  ipcMain.handle('tether:previewFile', (e, path: unknown) => { guard(e, true); if (!isDevicePath(path)) bad('path'); return h.previewFile(path as string) })
+  ipcMain.handle('tether:previewStep', (e, delta: unknown) => {
+    if (!fromTether(e) || !h.isPreviewSender(e.sender) || h.isLocked()) throw new Error('blocked: unknown sender')
+    if (delta !== 1 && delta !== -1) bad('step')
+    return h.previewStep(e.sender, delta as 1 | -1)
+  })
+  ipcMain.handle('tether:pickAndSend', (e, dir: unknown) => { guard(e, true); if (!isDevicePath(dir)) bad('path'); return h.pickAndSend(dir as string) })
+  ipcMain.handle('tether:saveToPc', (e, paths: unknown) => { guard(e, true); if (!isList(paths, isDevicePath)) bad('path'); return h.saveToPc(paths as string[]) })
+  ipcMain.handle('tether:deleteFiles', (e, paths: unknown) => { guard(e, true); if (!isList(paths, isDevicePath)) bad('path'); return h.deleteFiles(paths as string[]) })
+  ipcMain.handle('tether:newFolder', (e, path: unknown) => { guard(e, true); if (!isDevicePath(path)) bad('path'); return h.newFolder(path as string) })
+  ipcMain.handle('tether:installApk', (e, path: unknown) => {
+    guard(e, true); if (!isLocalPath(path) || !path.toLowerCase().endsWith('.apk')) bad('path'); return h.installApk(path as string)
+  })
+  ipcMain.handle('tether:openSaveFolder', (e) => { guard(e, true); return h.openSaveFolder() })
+
+  ipcMain.handle('tether:copyClip', (e, id: unknown) => { guard(e, true); if (!isClipId(id)) bad('clip'); return h.copyClip(id as number) })
+  ipcMain.handle('tether:sendClip', (e, id: unknown) => { guard(e, true); if (!isClipId(id)) bad('clip'); h.sendClip(id as number) })
+  ipcMain.handle('tether:pasteToPhone', (e) => { guard(e, true); return h.pasteToPhone() })
+  ipcMain.handle('tether:clearClips', (e) => { guard(e, true); h.clearClips() })
+  ipcMain.handle('tether:setClipSettings', (e, s: unknown) => { guard(e, true); if (!isClipSettings(s)) bad('settings'); h.setClipSettings(s as ClipSettings) })
+  ipcMain.handle('tether:screenshot', (e) => { guard(e, true); return h.screenshot() })
+  ipcMain.handle('tether:screenOff', (e) => { guard(e, true); h.screenOff() })
+  ipcMain.handle('tether:saveRecording', (e, data: unknown) => {
+    guard(e, true); if (!(data instanceof ArrayBuffer) || data.byteLength === 0) bad('recording'); return h.saveRecording(data as ArrayBuffer)
+  })
 }
