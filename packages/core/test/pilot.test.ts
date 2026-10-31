@@ -248,6 +248,7 @@ describe('PilotGate', () => {
   it('a full-screen emoji search covering the chat uses the last chat seen in that app', () => {
     const sheet = [node({ cls: 'android.widget.FrameLayout', bounds: [0, 0, 1080, 2400] }),
       node({ cls: 'android.widget.EditText', text: 'wave', editable: true, focused: true, bounds: [100, 220, 1000, 310] }),
+      node({ text: 'Frequently used', id: 'com.whatsapp:id/title', bounds: [40, 360, 300, 420] }), // the picker's heading
       node({ cls: 'android.widget.Button', desc: '👋', id: 'com.whatsapp:id/emoji', clickable: true, bounds: [0, 330, 120, 440] })]
     const wave = { kind: 'tap', x: 60, y: 385 } as const
     const g = started({ to: 'You' })

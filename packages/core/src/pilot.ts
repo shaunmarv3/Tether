@@ -69,9 +69,11 @@ export function isLockScreen(fg: string | null, nodes: UiNode[] | null, keyguard
 
 // The chat's name: WhatsApp's title id, else the first plain text in the top 20 % of the screen (below the status bar).
 const TITLE_IDS = ['com.whatsapp:id/conversation_contact_name', 'com.whatsapp.w4b:id/conversation_contact_name']
+const titleById = (nodes: UiNode[]) => nodes.find((n) => TITLE_IDS.includes(n.id) && n.text)?.text ?? null
 export function chatTitle(nodes: UiNode[]): string | null {
-  const byId = nodes.find((n) => TITLE_IDS.includes(n.id) && n.text)
-  if (byId) return byId.text
+  return titleById(nodes) ?? topText(nodes)
+}
+function topText(nodes: UiNode[]): string | null {
   const height = Math.max(0, ...nodes.map((n) => n.bounds[3]))
   const top = nodes.find((n) => n.text && !n.editable && n.bounds[1] >= height * 0.03 && n.bounds[1] < height * 0.2)
   return top?.text ?? null
@@ -110,7 +112,7 @@ export function screenMark(a: PilotAction, nodes: UiNode[] | null, popups: Popup
 export class PilotGate {
   task: PilotTask | null = null
   askSends = true // the AI PILOT page switch; OFF skips the popup only for sends to the plan's `to`
-  // The last chat name read on screen, per app: a full-screen picker (emoji search) can cover it.
+  // The last chat name read from a real title field, per app: a full-screen picker (emoji search) can cover it.
   private seen: { pkg: string | null; title: string } | null = null
   private steps = 0
   private last = 0
@@ -132,7 +134,7 @@ export class PilotGate {
     if (now - this.last > IDLE_MS) return block('TASK TIMED OUT (10 MIN IDLE)', true)
     // A chat task (plan with a `to`) has no step limit (user, 2026-11-01): every send still asks, STOP and idle still end it.
     if (!this.task.to && this.steps >= STEP_LIMIT) return block(`STEP LIMIT (${STEP_LIMIT}) REACHED`, true)
-    const title = nodes && chatTitle(nodes)
+    const title = nodes && titleById(nodes)
     if (title) this.seen = { pkg: screenPackage(nodes), title }
     const v = this.judge(this.task, a, fg, nodes, popups)
     if (v.v !== 'block') {
@@ -142,8 +144,9 @@ export class PilotGate {
     return v
   }
 
+  // The real title field, else the one remembered for this app (a picker covers it), else the top-text guess.
   private chat(nodes: UiNode[]): string | null {
-    return chatTitle(nodes) ?? (this.seen && this.seen.pkg === screenPackage(nodes) ? this.seen.title : null)
+    return titleById(nodes) ?? (this.seen?.pkg === screenPackage(nodes) ? this.seen.title : null) ?? topText(nodes)
   }
 
   private judge(task: PilotTask, a: PilotAction, fg: string | null, nodes: UiNode[] | null, popups: Popup[]): Verdict {
