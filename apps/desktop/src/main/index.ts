@@ -6,7 +6,7 @@ import { basename, extname, isAbsolute, join } from 'node:path'
 import { Readable } from 'node:stream'
 import {
   clearNotification, countPlaces, createLog, DeviceTracker, findEngine, getStatus, hashPin, identify, installApk, installEngine, listApps, listDir,
-  lockdown, makeDir, newestScreenshot, run, pickPhone, PinGate, pruneLogs, pullFiles, pushFiles, readActivity, readNotifications, removeFiles, removeStaleForwards, screenshot, sdCards, ShotTracker,
+  lockdown, makeDir, newestScreenshot, PhoneStream, run, pickPhone, PinGate, pruneLogs, pullFiles, pushFiles, readActivity, readNotifications, removeFiles, removeStaleForwards, screenshot, sdCards, ShotTracker,
   type Device, type EnginePaths, type PhoneApp, type PhoneLink, type PhoneNotification,
 } from '@tether/core'
 import { DEFAULT_APP_OPTIONS, LOCKED_PILOT, type AppOptions, type AppState, type Bounds, type FileOp } from '../shared/api'
@@ -113,6 +113,21 @@ const clipLink = new ClipLink({
   onChange: () => push(),
 })
 
+// Spec G6: while an AI task is waiting or running, a control-only link keeps the phone awake (scrcpy keep_active; the
+// phone's own setting comes back when it closes).
+let awakeLink: PhoneStream | null = null
+function keepAwake(on: boolean): void {
+  awakeLink?.close()
+  awakeLink = null
+  const d = readyDevice()
+  if (!on || !engine || !d || state.locked) return
+  const s = new PhoneStream(engine, d.serial,
+    { video: false, audio: false, control: true, keepActive: true, powerOn: true, clipboard: false, display: null })
+  awakeLink = s
+  s.once('close', (error: string | null) => { if (error) log(`awake link closed: ${error}`) })
+  s.start().catch(() => undefined) // 'close' logged it
+}
+
 // AI pilot (Phase 3): tether-mcp → pipe → this guard. Questions bring the main window forward and keep it on top.
 const pilot = new Pilot({
   phone: () => {
@@ -147,6 +162,7 @@ const pilot = new Pilot({
   act,
   log,
   onChange: () => push(),
+  awake: keepAwake,
   tokenFile: join(paths.root, 'pilot.token'),
 })
 
@@ -264,6 +280,7 @@ function lock(reason: string): void {
   if (!settings.pinHash) return // no PIN yet: the setup screen is showing anyway
   Object.assign(state, { locked: true, lockReason: reason, status: null })
   pilot.stop('TETHER LOCKED')
+  pilot.setAskSends(true) // spec G5: never stays OFF past a lock
   clipLink.update() // sync stops while locked
   clipLink.clear()
   lastNotifs = []
@@ -824,7 +841,8 @@ else {
         notifySaved('SCREENSHOT SAVED', file)
       },
       screenOff: () => clipLink.screenOff(),
-      pilotAnswer: (id, yes) => pilot.answer(id, yes),
+      pilotAnswer: (id, yes, text) => pilot.answer(id, yes, text),
+      pilotAskSends: (on) => pilot.setAskSends(on),
       pilotStop: () => pilot.stop('STOPPED BY YOU'),
       pilotConnect: () => claude(MCP_ADD, 'CLAUDE CODE CONNECTED'),
       pilotDisconnect: () => claude(['mcp', 'remove', 'tether', '--scope', 'user'], 'CLAUDE CODE DISCONNECTED'),

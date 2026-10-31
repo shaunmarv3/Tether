@@ -4,8 +4,9 @@ import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { rmSync, writeFileSync } from 'node:fs'
 import { createServer, type Server, type Socket } from 'node:net'
 import {
-  badArgs, dumpUi, focusedPackage, formatScreen, isMoneyApp, launchApp, Lines, nodeAt, parseRequest, PILOT_PIPE, PilotGate, pressKey,
-  screenMark, screenPackage, swipeOn, tapAt, type PhoneApp, type PilotAction, type PilotReply, type PilotRequest, type UiNode,
+  badArgs, clearField, dumpUi, formatScreen, isLockScreen, isMoneyApp, launchApp, Lines, longPressAt, messageDraft, nodeAt, parseRequest,
+  PILOT_PIPE, PilotGate, pressKey, screenMark, screenPackage, swipeOn, SYSTEM_PANELS, tapAt, windowState, type PhoneApp, type PilotAction,
+  type PilotReply, type PilotRequest, type UiNode,
 } from '@tether/core'
 import type { PilotQuestion, PilotStep, PilotTaskView, PilotView } from '../shared/api'
 
@@ -19,12 +20,19 @@ export interface PilotDeps {
   act(line: string): void // Security activity + log; never message or screen text
   log(line: string): void
   onChange(): void
+  awake(on: boolean): void // keep the phone screen on while a task is waiting or running
   tokenFile: string
 }
+
+type Phone = { adb: string; serial: string }
+type Result = { text: string; image?: { data: string; mime: 'image/jpeg' } }
+interface Look { nodes: UiNode[] | null; fg: string | null; locked: string | null /* what is locked, for the popup */ }
+interface Answer { yes: boolean; text?: string /* the SEND popup's edited message */ }
 
 const QUESTION_MS = 120_000
 const NO = 'THE USER SAID NO.'
 const short = (s: string, n = 60) => (s.length > n ? `${s.slice(0, n - 1)}…` : s)
+const pause = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 export class Pilot {
   connected: boolean | null = null
@@ -33,7 +41,7 @@ export class Pilot {
   private current: PilotTaskView | null = null
   private past: PilotTaskView[] = []
   private question: PilotQuestion | null = null
-  private answer_: ((yes: boolean) => void) | null = null
+  private answer_: ((yes: boolean, text?: string) => void) | null = null
   private nextQuestion = 1
   private names = new Map<string, string>() // package → app name, for the page and the log
   private server: Server | null = null
@@ -42,7 +50,18 @@ export class Pilot {
   constructor(private deps: PilotDeps) {}
 
   view(): PilotView {
-    return { connected: this.connected, command: this.command, current: this.current, past: this.past, question: this.question }
+    return {
+      connected: this.connected, command: this.command, current: this.current, past: this.past, question: this.question,
+      askSends: this.gate.askSends,
+    }
+  }
+
+  // "Ask me before every send" (spec G5). Not saved; main turns it back on when TETHER locks.
+  setAskSends(on: boolean): void {
+    if (this.gate.askSends === on) return
+    this.gate.askSends = on
+    this.deps.act(`PILOT ASK BEFORE SEND ${on ? 'ON' : 'OFF'}`)
+    this.deps.onChange()
   }
 
   listen(): void {
@@ -69,8 +88,8 @@ export class Pilot {
     if (had) this.deps.act(`PILOT STOPPED · ${logged}`)
   }
 
-  answer(id: number, yes: boolean): void {
-    if (this.question?.id === id) this.answer_?.(yes)
+  answer(id: number, yes: boolean, text?: string): void {
+    if (this.question?.id === id) this.answer_?.(yes, text)
   }
 
   // --- pipe ---
@@ -111,7 +130,7 @@ export class Pilot {
 
   // --- tools ---
 
-  private async run(req: PilotRequest): Promise<{ text: string; image?: { data: string; mime: 'image/jpeg' } }> {
+  private async run(req: PilotRequest): Promise<Result> {
     const a = req.args
     if (req.tool === 'start_task') return { text: await this.start(a.goal as string, a.steps as string[], a.apps as string[], (a.to as string | undefined) ?? null) }
     if (req.tool === 'end_task') return { text: this.end((a.summary as string | undefined) ?? '') }
@@ -125,13 +144,44 @@ export class Pilot {
       req.tool === 'open_app' ? { kind: 'open', pkg: await this.resolve(a.app as string, true) } // the guard blocks money + stops
       : req.tool === 'read_screen' ? { kind: 'read' }
       : req.tool === 'screenshot' ? { kind: 'shot' }
+      : req.tool === 'wait_for_change' ? { kind: 'wait' }
       : req.tool === 'tap' ? { kind: 'tap', x: a.x as number, y: a.y as number }
+      : req.tool === 'long_press' ? { kind: 'press', x: a.x as number, y: a.y as number }
       : req.tool === 'type' ? { kind: 'type', text: a.text as string }
       : req.tool === 'swipe' ? { kind: 'swipe', x1: a.x1 as number, y1: a.y1 as number, x2: a.x2 as number, y2: a.y2 as number }
       : { kind: 'key', key: a.key as 'back' | 'home' | 'enter' }
-    const nodes = action.kind === 'open' ? null : await dumpUi(p.adb, p.serial).catch(() => null)
-    const fg = action.kind === 'open' ? null
-      : (nodes && screenPackage(nodes)) ?? await focusedPackage(p.adb, p.serial).catch(() => null)
+    const look = action.kind === 'open' ? { nodes: null, fg: null, locked: null } : await this.unlocked(p, await this.look(p))
+    return this.act(p, action, look, (a.timeout_s as number | undefined) ?? 120)
+  }
+
+  // Screen text + foreground app + lock state, read together before every action.
+  private async look(p: Phone): Promise<Look> {
+    const [nodes, win] = await Promise.all([dumpUi(p.adb, p.serial).catch(() => null), windowState(p.adb, p.serial).catch(() => null)])
+    const fg = (nodes && screenPackage(nodes)) ?? win?.focus ?? null
+    const locked = fg && isMoneyApp(fg) ? null // the guard blocks it anyway
+      : win?.keyguard ? 'PHONE' : isLockScreen(fg, nodes, false) ? this.name(fg) : null
+    return { nodes, fg, locked }
+  }
+
+  // A lock screen pauses the task until the user unlocks it on the phone (spec G1). The AI never unlocks anything.
+  private async unlocked(p: Phone, s: Look): Promise<Look> {
+    for (let tries = 0; s.locked && tries < 2; tries++) {
+      const { yes } = await this.ask({ kind: 'unlock', app: s.locked, why: 'LOCKED', to: null, message: null, task: null })
+      if (!this.gate.task) throw new Error('STOPPED BY THE USER.')
+      if (!yes) {
+        this.stop('STOPPED AT A LOCK SCREEN')
+        throw new Error('THE USER STOPPED THE TASK AT A LOCK SCREEN.')
+      }
+      s = await this.look(p)
+    }
+    if (s.locked) {
+      this.step(`${s.locked} STILL LOCKED`, 'blocked')
+      throw new Error('STILL LOCKED. THE USER HAS TO UNLOCK IT ON THE PHONE.')
+    }
+    return s
+  }
+
+  private async act(p: Phone, action: PilotAction, { nodes, fg }: Look, waitS = 120): Promise<Result> {
     const v = this.gate.check(action, fg, nodes, Date.now())
     const label = this.label(action, nodes)
     if (v.v === 'block') {
@@ -141,26 +191,62 @@ export class Pilot {
     }
     if (v.v === 'ask') {
       const mark = screenMark(action, nodes)
-      const yes = await this.ask({ kind: v.send ? 'send' : 'risky', app: this.name(fg), why: v.why, to: v.send?.to ?? null,
+      const ans = await this.ask({ kind: v.send ? 'send' : 'risky', app: this.name(fg), why: v.why, to: v.send?.to ?? null,
         message: v.send?.message ?? null, task: null })
       if (!this.gate.task) throw new Error('STOPPED BY THE USER.')
-      if (!yes) {
+      const edited = v.why === 'SEND' && ans.text !== undefined && ans.text !== v.send?.message ? ans.text : null
+      if (!ans.yes || edited?.trim() === '') {
         this.step(label, 'asked')
         throw new Error(NO)
       }
+      let now = nodes
+      if (edited !== null) {
+        now = await this.edit(p, v.send?.message ?? '', edited)
+        if (!now) {
+          this.step(`${label} · EDIT DIDN'T GO IN`, 'blocked')
+          throw new Error("THE USER'S EDITED MESSAGE DIDN'T GO INTO THE FIELD. NOT SENT. READ THE SCREEN.")
+        }
+      } else if (nodes) now = await dumpUi(p.adb, p.serial).catch(() => null)
       // The user may have taken minutes: act only on the screen they said yes to.
-      if (nodes && screenMark(action, await dumpUi(p.adb, p.serial).catch(() => null)) !== mark) {
+      if (nodes && screenMark(action, now) !== mark) {
         this.step(`${label} · SCREEN CHANGED`, 'blocked')
         throw new Error('THE SCREEN CHANGED WHILE THE USER DECIDED. READ THE SCREEN AND TRY AGAIN.')
       }
-      this.step(label, 'asked')
-    } else this.step(label, 'ok')
+      this.step(edited !== null ? `${label} · YOUR EDIT` : label, 'asked')
+    } else this.step(v.send ? `${label} · "${short(v.send.message, 40)}" · NO POPUP` : label, 'ok')
     this.deps.act(`PILOT ${action.kind.toUpperCase()} · ${action.kind === 'open' ? action.pkg : fg}`)
-    return this.perform(p, action, fg, nodes)
+    return this.perform(p, action, fg, nodes, waitS)
   }
 
-  private async perform(p: { adb: string; serial: string }, a: PilotAction, fg: string | null, nodes: UiNode[] | null) {
+  // The user changed the message in the SEND popup: empty the field, paste theirs, and go on only if it is really there.
+  private async edit(p: Phone, draft: string, text: string): Promise<UiNode[] | null> {
+    await clearField(p.adb, p.serial, draft.length)
+    this.deps.typeText(text)
+    await pause(300)
+    const nodes = await dumpUi(p.adb, p.serial).catch(() => null)
+    return nodes && messageDraft(nodes) === text ? nodes : null
+  }
+
+  // Re-reads the screen until it differs from the one the call started on, then answers like read_screen (guard and
+  // lock check included). Compares the open app only when there is no screen text (games).
+  private async waitForChange(p: Phone, nodes: UiNode[] | null, fg: string | null, seconds: number): Promise<Result> {
+    const before = nodes && formatScreen(nodes)
+    const end = Date.now() + seconds * 1000
+    while (Date.now() < end) {
+      await pause(500)
+      if (!this.gate.task) throw new Error('STOPPED BY THE USER.')
+      if (!this.deps.phone()) throw new Error('TETHER IS LOCKED OR THE PHONE IS NOT CONNECTED.')
+      const s = await this.look(p)
+      if (s.locked || s.fg !== fg || (before !== null && s.nodes && formatScreen(s.nodes) !== before)) {
+        return this.act(p, { kind: 'read' }, await this.unlocked(p, s))
+      }
+    }
+    return { text: `No change in ${seconds} s.${nodes ? '' : ' No screen text here: only the open app was compared.'}` }
+  }
+
+  private async perform(p: Phone, a: PilotAction, fg: string | null, nodes: UiNode[] | null, waitS: number): Promise<Result> {
     switch (a.kind) {
+      case 'wait': return this.waitForChange(p, nodes, fg, waitS)
       case 'read':
         return {
           text: nodes
@@ -176,6 +262,7 @@ export class Pilot {
       }
       case 'open': await launchApp(p.adb, p.serial, a.pkg); return { text: `Opened ${this.name(a.pkg)}.` }
       case 'tap': await tapAt(p.adb, p.serial, a.x, a.y); return { text: 'Tapped.' }
+      case 'press': await longPressAt(p.adb, p.serial, a.x, a.y); return { text: 'Long-pressed.' }
       case 'type': this.deps.typeText(a.text); return { text: 'Typed.' }
       case 'swipe': await swipeOn(p.adb, p.serial, a.x1, a.y1, a.x2, a.y2); return { text: 'Swiped.' }
       case 'key': await pressKey(p.adb, p.serial, a.key); return { text: `Pressed ${a.key}.` }
@@ -191,8 +278,9 @@ export class Pilot {
       goal, steps, apps: names, to, status: 'waiting', why: null, log: [], summary: null, startedAt: new Date().toISOString(),
     }
     this.current = view
+    this.deps.awake(true)
     this.deps.onChange()
-    const yes = await this.ask({ kind: 'plan', app: names.join(', '), why: 'START TASK', to, message: null, task: { goal, steps, apps: names, to } })
+    const { yes } = await this.ask({ kind: 'plan', app: names.join(', '), why: 'START TASK', to, message: null, task: { goal, steps, apps: names, to } })
     if (this.current !== view) throw new Error('STOPPED BY THE USER.')
     if (!yes) {
       this.finish('denied', null)
@@ -218,6 +306,10 @@ export class Pilot {
   // App name or package → package. Money apps never make it into a plan (rule 14); open_app lets the guard see them so it
   // can stop the task.
   private async resolve(app: string, money = false): Promise<string> {
+    if (app.toLowerCase() === 'system panels' || app === SYSTEM_PANELS) { // shade + quick settings: not a launcher app
+      this.names.set(SYSTEM_PANELS, 'System panels')
+      return SYSTEM_PANELS
+    }
     const apps = await this.deps.apps()
     for (const x of apps) this.names.set(x.pkg, x.name)
     const hit = apps.find((x) => x.pkg === app) ?? apps.find((x) => x.name.toLowerCase() === app.toLowerCase())
@@ -234,14 +326,16 @@ export class Pilot {
     switch (a.kind) {
       case 'read': return 'READ SCREEN'
       case 'shot': return 'SCREENSHOT'
+      case 'wait': return 'WAIT FOR A CHANGE'
       case 'open': return `OPEN ${this.name(a.pkg)}`
       case 'type': return `TYPE "${short(a.text)}"`
       case 'swipe': return 'SWIPE'
       case 'key': return `KEY ${a.key.toUpperCase()}`
-      case 'tap': {
+      case 'tap': case 'press': {
         const n = nodes && nodeAt(nodes, a.x, a.y)
         const what = n && (n.text || n.desc || n.id.split(':id/').pop())
-        return what ? `TAP "${short(what, 40)}"` : `TAP ${a.x},${a.y}`
+        const verb = a.kind === 'tap' ? 'TAP' : 'LONG PRESS'
+        return what ? `${verb} "${short(what, 40)}"` : `${verb} ${a.x},${a.y}`
       }
     }
   }
@@ -258,25 +352,26 @@ export class Pilot {
     Object.assign(t, { status, why })
     this.past = [t, ...this.past].slice(0, 10)
     this.current = null
+    this.deps.awake(false)
     this.deps.onChange()
   }
 
-  private ask(q: Omit<PilotQuestion, 'id'>): Promise<boolean> {
-    if (this.question) return Promise.resolve(false) // one at a time; requests are serialised anyway
+  private ask(q: Omit<PilotQuestion, 'id'>): Promise<Answer> {
+    if (this.question) return Promise.resolve({ yes: false }) // one at a time; requests are serialised anyway
     const question = { ...q, id: this.nextQuestion++ }
     this.question = question
     this.deps.ask(true)
     this.deps.onChange()
     return new Promise((resolve) => {
       const timer = setTimeout(() => done(false), QUESTION_MS)
-      const done = (yes: boolean) => {
+      const done = (yes: boolean, text?: string) => {
         clearTimeout(timer)
         if (this.question !== question) return
         this.question = null
         this.answer_ = null
         this.deps.ask(false)
         this.deps.onChange()
-        resolve(yes)
+        resolve({ yes, text })
       }
       this.answer_ = done
     })

@@ -47,12 +47,15 @@ export interface PilotTaskView {
   log: PilotStep[] /* newest first, max 100 */; summary: string | null; startedAt: string
 }
 export interface PilotQuestion {
-  id: number; kind: 'plan' | 'send' | 'risky'; app: string; why: string
-  to: string | null; message: string | null // send
+  id: number; kind: 'plan' | 'send' | 'risky' | 'unlock'; app: string; why: string // why SEND / REACT for a send
+  to: string | null; message: string | null // send (REACT: the emoji)
   task: { goal: string; steps: string[]; apps: string[]; to: string | null } | null // plan
 }
-export interface PilotView { connected: boolean | null; command: string; current: PilotTaskView | null; past: PilotTaskView[]; question: PilotQuestion | null }
-export const LOCKED_PILOT: PilotView = { connected: null, command: '', current: null, past: [], question: null }
+export interface PilotView {
+  connected: boolean | null; command: string; current: PilotTaskView | null; past: PilotTaskView[]; question: PilotQuestion | null
+  askSends: boolean // "Ask me before every send" (not saved, ON after lock/restart)
+}
+export const LOCKED_PILOT: PilotView = { connected: null, command: '', current: null, past: [], question: null, askSends: true }
 
 export interface AppState {
   locked: boolean; hasPin: boolean; lockReason: string | null
@@ -125,7 +128,8 @@ export interface TetherApi {
   screenOff(): Promise<void>
   saveRecording(data: ArrayBuffer): Promise<void>
   // AI pilot
-  pilotAnswer(id: number, yes: boolean): Promise<void>
+  pilotAnswer(id: number, yes: boolean, text?: string): Promise<void> // text: the SEND popup's edited message
+  pilotAskSends(on: boolean): Promise<void>
   pilotStop(): Promise<void>
   pilotConnect(): Promise<void>
   pilotDisconnect(): Promise<void>
