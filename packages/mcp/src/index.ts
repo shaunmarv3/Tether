@@ -20,6 +20,10 @@ const INSTRUCTIONS = "TETHER lets you use the user's Android phone. Always call 
   + 'A lock screen is for the user: TETHER asks them to unlock it; never type a PIN or password. '
   + 'Watching a chat or a game: call wait_for_change instead of asking the user to tell you; reply only when a reply is '
   + 'needed and ignore stickers, "ok" and reactions. '
+  + 'If someone asks about the user (their plans, where they are, private facts, opinions, promises, anything you would be '
+  + 'guessing), call ask_user before you reply and use only what the user tells you; never make it up. '
+  + 'Know when to stop: end the chat with end_task and a short summary when the conversation is naturally over (bye, good '
+  + 'night, ttyl), the goal is done, the other person wants to stop, or nothing has come back for about 10 minutes. '
   + 'Reacting to a message: long_press it, then tap the emoji that really fits its meaning and tone, not 👍 by default '
   + '(funny 😂 🤣 💀, love or thanks ❤️ 🥰 🙏, agree 👍 💯, wow 😮 🤯, sad 😢 🥺, celebrate 🎉 🔥, and any other emoji that '
   + 'fits better). If the right one is not in the quick row, open the full emoji picker (the + button) and search it by name. '
@@ -110,6 +114,11 @@ server.registerTool('wait_for_change', {
   inputSchema: { timeout_s: z.number().int().min(5).max(300).optional().describe('Seconds to wait, 5–300 (default 120)') },
   annotations: { readOnlyHint: true },
 }, (a) => call('wait_for_change', a))
+server.registerTool('ask_user', {
+  description: 'Ask the user something only they know (e.g. a friend asks about their plans) and get their typed answer. '
+    + 'A popup in TETHER waits up to 2 minutes; if they skip, do not guess.',
+  inputSchema: { question: z.string().min(1).max(300).describe('Your question, with who is asking and what they asked') },
+}, (a) => call('ask_user', a))
 server.registerTool('type', { description: 'Type text into the focused field.', inputSchema: { text: z.string().min(1).max(1000) } },
   (a) => call('type', a))
 server.registerTool('swipe', { description: 'Swipe from x1, y1 to x2, y2 in phone pixels (scrolls).', inputSchema: { x1: px, y1: px, x2: px, y2: px } },

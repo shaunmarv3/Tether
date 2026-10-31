@@ -14,7 +14,7 @@ export type Verdict =
   | { v: 'block'; why: string; stop: boolean }
 
 export const STEP_LIMIT = 200
-export const IDLE_MS = 1_800_000
+export const IDLE_MS = 600_000
 export const SYSTEM_PANELS = 'com.android.systemui' // notification shade, quick settings, keyguard
 export const APP_LOCKER = 'com.nothing.applocker'
 
@@ -118,8 +118,9 @@ export class PilotGate {
 
   check(a: PilotAction, fg: string | null, nodes: UiNode[] | null, now: number): Verdict {
     if (!this.task) return block('NO APPROVED TASK. CALL start_task FIRST.')
-    if (now - this.last > IDLE_MS) return block('TASK TIMED OUT (30 MIN IDLE)', true)
-    if (this.steps >= STEP_LIMIT) return block(`STEP LIMIT (${STEP_LIMIT}) REACHED`, true)
+    if (now - this.last > IDLE_MS) return block('TASK TIMED OUT (10 MIN IDLE)', true)
+    // A chat task (plan with a `to`) has no step limit (user, 2026-11-01): every send still asks, STOP and idle still end it.
+    if (!this.task.to && this.steps >= STEP_LIMIT) return block(`STEP LIMIT (${STEP_LIMIT}) REACHED`, true)
     const v = this.judge(this.task, a, fg, nodes)
     if (v.v !== 'block') {
       this.steps++

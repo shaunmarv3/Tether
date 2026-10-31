@@ -137,6 +137,7 @@ export class Pilot {
     const p = this.deps.phone()
     if (!p) throw new Error('TETHER IS LOCKED OR THE PHONE IS NOT CONNECTED.')
     if (!this.gate.task) throw new Error('NO APPROVED TASK. CALL start_task FIRST.') // before the screen is even read
+    if (req.tool === 'ask_user') return { text: await this.askUser(a.question as string) }
     if (req.tool === 'list_apps') {
       return { text: (await this.deps.apps()).filter((x) => !isMoneyApp(x.pkg)).map((x) => `${x.name} — ${x.pkg}`).join('\n') }
     }
@@ -152,6 +153,16 @@ export class Pilot {
       : { kind: 'key', key: a.key as 'back' | 'home' | 'enter' }
     const look = action.kind === 'open' ? { nodes: null, fg: null, locked: null } : await this.unlocked(p, await this.look(p))
     return this.act(p, action, look, (a.timeout_s as number | undefined) ?? 120)
+  }
+
+  // Something only the user knows (someone in a chat asks about them): their typed answer goes back to Claude.
+  private async askUser(question: string): Promise<string> {
+    const ans = await this.ask({ kind: 'question', app: '', why: 'QUESTION', to: null, message: question, task: null })
+    if (!this.gate.task) throw new Error('STOPPED BY THE USER.')
+    const reply = ans.yes ? ans.text?.trim() : ''
+    this.step(`ASKED YOU: "${short(question, 40)}"${reply ? '' : ' · NO ANSWER'}`, 'asked')
+    return reply ? `The user answered: ${reply}`
+      : "The user didn't answer. Don't guess or make it up: say you'll check and get back, or leave that part out."
   }
 
   // Screen text + foreground app + lock state, read together before every action.

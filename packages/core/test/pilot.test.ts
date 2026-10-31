@@ -273,6 +273,9 @@ describe('PilotGate', () => {
     for (let i = 0; i < STEP_LIMIT; i++) expect(g.check({ kind: 'read' }, WA, chat('Mom'), i).v).toBe('allow')
     expect(g.check({ kind: 'read' }, WA, chat('Mom'), STEP_LIMIT)).toMatchObject({ v: 'block', stop: true })
 
+    const talk = started({ to: 'Mom' }) // a chat task: no step limit (user, 2026-11-01)
+    for (let i = 0; i <= STEP_LIMIT; i++) expect(talk.check({ kind: 'read' }, WA, chat('Mom'), i).v).toBe('allow')
+
     const idle = started()
     expect(idle.check({ kind: 'read' }, WA, chat('Mom'), 1000).v).toBe('allow')
     expect(idle.check({ kind: 'read' }, WA, chat('Mom'), 1000 + IDLE_MS + 1)).toMatchObject({ v: 'block', stop: true })

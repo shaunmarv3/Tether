@@ -11,22 +11,24 @@ const STATUS: Record<PilotTaskView['status'], string> = {
 const LED: Record<string, string> = { ok: 'on', asked: 'amber', blocked: 'red' }
 const doneSteps = (t: PilotTaskView) => t.log.filter((s) => s.verdict !== 'blocked').length
 
-// The plan/send/risky/unlock question, over every page. The "no" key has focus so a stray Enter never says yes.
+// The plan/send/risky/unlock/question popup, over every page. The "no" key has focus so a stray Enter never says yes.
 export function PilotAsk({ q }: { q: PilotQuestion }) {
   const now = useNow()
   const [since, setSince] = useState(Date.now())
-  const [text, setText] = useState(q.message ?? '')
-  useEffect(() => { setSince(Date.now()); setText(q.message ?? '') }, [q.id])
+  const start = q.kind === 'question' ? '' : q.message ?? '' // a question starts with an empty answer box
+  const [text, setText] = useState(start)
+  useEffect(() => { setSince(Date.now()); setText(start) }, [q.id])
   const left = Math.max(0, QUESTION_S - Math.floor((now - since) / 1000))
   const react = q.kind === 'send' && q.why === 'REACT'
   const editable = q.kind === 'send' && !react
-  const answer = (yes: boolean) => void tether.pilotAnswer(q.id, yes, editable && yes ? text : undefined)
-  const title = q.kind === 'plan' ? 'AI WANTS TO START A TASK' : q.kind === 'unlock' ? `${q.app.toUpperCase()} IS LOCKED`
+  const typed = editable || q.kind === 'question'
+  const answer = (yes: boolean) => void tether.pilotAnswer(q.id, yes, typed && yes ? text : undefined)
+  const title = q.kind === 'plan' ? 'AI WANTS TO START A TASK' : q.kind === 'question' ? 'AI ASKS YOU' : q.kind === 'unlock' ? `${q.app.toUpperCase()} IS LOCKED`
     : react ? 'AI WANTS TO REACT' : q.kind === 'send' ? 'AI WANTS TO SEND'
     : q.why === 'SETTINGS' ? 'AI WANTS TO CHANGE SETTINGS' : q.why === 'SYSTEM DIALOG' ? 'AI WANTS TO ANSWER A SYSTEM POPUP'
     : q.why === 'SYSTEM PANEL' ? 'AI WANTS TO TAP IN SYSTEM PANELS'
     : q.why.includes('WITHOUT SCREEN TEXT') ? `AI WANTS TO ${q.why}` : `AI WANTS TO TAP ${q.why}`
-  const [no, yes] = q.kind === 'plan' ? ['DENY', 'ALLOW'] : q.kind === 'unlock' ? ['STOP', 'DONE']
+  const [no, yes] = q.kind === 'plan' ? ['DENY', 'ALLOW'] : q.kind === 'unlock' ? ['STOP', 'DONE'] : q.kind === 'question' ? ['SKIP', 'ANSWER']
     : react ? ["DON'T REACT", 'REACT'] : q.kind === 'send' ? ["DON'T SEND", 'SEND'] : ['NO', 'YES']
 
   return (
@@ -62,10 +64,18 @@ export function PilotAsk({ q }: { q: PilotQuestion }) {
           </dl>
         )}
         {q.kind === 'risky' && <dl className="specs"><dt>APP</dt><dd>{q.app}</dd></dl>}
+        {q.kind === 'question' && (
+          <div className="col">
+            <p className="pilot-msg">{q.message}</p>
+            <textarea className="pilot-msg pilot-edit" value={text} maxLength={1000} rows={3} aria-label="Your answer for Claude"
+              placeholder="Your answer…" onChange={(e) => setText(e.target.value)} />
+            <span className="mono tiny muted">CLAUDE USES ONLY WHAT YOU TYPE HERE · SKIP = IT WON'T GUESS</span>
+          </div>
+        )}
         {q.kind === 'unlock' && <p className="card-note">Unlock it on your phone, then press DONE. The AI waits and never types your PIN or password.</p>}
         <div className="row">
           <button className="key wide grow-key" autoFocus onClick={() => answer(false)}>{no}</button>
-          <button className="key wide grow-key accent" disabled={editable && !text.trim()} onClick={() => answer(true)}>{yes}</button>
+          <button className="key wide grow-key accent" disabled={typed && !text.trim()} onClick={() => answer(true)}>{yes}</button>
         </div>
       </div>
     </div>
@@ -92,7 +102,7 @@ export function Pilot({ state }: { state: AppState }) {
           <span className="sec-big">{live && <span className="blink">● </span>}{t ? STATUS[t.status] : '● NO TASK'}</span>
           <div className="sec-grid">
             <div className="col tight"><span className="dim tiny">CLAUDE CODE</span><span>{claude}</span></div>
-            <div className="col tight"><span className="dim tiny">STEPS</span><span>{t ? `${doneSteps(t)} / 200` : '—'}</span></div>
+            <div className="col tight"><span className="dim tiny">STEPS</span><span>{t ? `${doneSteps(t)}${t.to ? ' · CHAT, NO LIMIT' : ' / 200'}` : '—'}</span></div>
             <div className="col tight"><span className="dim tiny">APPS ALLOWED</span><span>{t ? t.apps.join(', ').toUpperCase() : 'NONE'}</span></div>
             <div className="col tight"><span className="dim tiny">STOP KEY</span><span>CTRL+ALT+X</span></div>
           </div>

@@ -3,7 +3,7 @@
 
 export const PILOT_PIPE = '\\\\.\\pipe\\tether-pilot'
 export const TOOLS = ['start_task', 'list_apps', 'open_app', 'read_screen', 'screenshot', 'tap', 'long_press', 'type', 'swipe', 'key', 'wait_for_change',
-  'end_task'] as const
+  'ask_user', 'end_task'] as const
 export type ToolName = (typeof TOOLS)[number]
 export interface PilotRequest { token: string; id: number; tool: ToolName; args: Record<string, unknown> }
 export type PilotReply =
@@ -44,6 +44,7 @@ export function badArgs(tool: ToolName, a: Record<string, unknown>): string | nu
     case 'swipe': return [a.x1, a.y1, a.x2, a.y2].every(coord) ? null : 'x1, y1, x2, y2: whole phone pixels 0–10000'
     case 'type': return str(a.text, 1, 1000) ? null : 'text: 1–1000 characters'
     case 'key': return a.key === 'back' || a.key === 'home' || a.key === 'enter' ? null : 'key: back, home or enter'
+    case 'ask_user': return str(a.question, 1, 300) ? null : 'question: 1–300 characters'
     case 'wait_for_change':
       return a.timeout_s === undefined || (Number.isInteger(a.timeout_s) && (a.timeout_s as number) >= 5 && (a.timeout_s as number) <= 300)
         ? null : 'timeout_s: whole seconds 5–300'

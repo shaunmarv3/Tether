@@ -53,6 +53,10 @@ describe('badArgs', () => {
   it('tools without args accept {}', () => {
     for (const tool of ['list_apps', 'read_screen', 'screenshot'] as const) expect(badArgs(tool, {})).toBeNull()
   })
+  it('ask_user', () => {
+    expect(badArgs('ask_user', { question: 'Sam asks if you are free on Sunday. What should I say?' })).toBeNull()
+    for (const question of ['', 'x'.repeat(301), 5, undefined]) expect(badArgs('ask_user', { question }), String(question)).not.toBeNull()
+  })
   it('long_press and wait_for_change', () => {
     expect(badArgs('long_press', { x: 10, y: 2000 })).toBeNull()
     expect(badArgs('long_press', { x: -1, y: 0 })).not.toBeNull()

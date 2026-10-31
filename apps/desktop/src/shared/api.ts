@@ -47,8 +47,8 @@ export interface PilotTaskView {
   log: PilotStep[] /* newest first, max 100 */; summary: string | null; startedAt: string
 }
 export interface PilotQuestion {
-  id: number; kind: 'plan' | 'send' | 'risky' | 'unlock'; app: string; why: string // why SEND / REACT for a send
-  to: string | null; message: string | null // send (REACT: the emoji)
+  id: number; kind: 'plan' | 'send' | 'risky' | 'unlock' | 'question'; app: string; why: string // why SEND / REACT for a send
+  to: string | null; message: string | null // send (REACT: the emoji); question: Claude's question to the user
   task: { goal: string; steps: string[]; apps: string[]; to: string | null } | null // plan
 }
 export interface PilotView {
