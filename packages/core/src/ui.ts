@@ -17,9 +17,11 @@ const decode = (s: string) => s.replace(/&(#x[0-9a-f]+|#\d+|lt|gt|quot|apos|amp)
 export function parseUiDump(xml: string): UiNode[] | null {
   if (!xml.includes('<hierarchy')) return null
   const nodes: UiNode[] = []
-  for (const m of xml.matchAll(/<node((?:\s+[\w-]+="[^"]*")*)\s*\/?>/g)) {
+  // Attributes come in double quotes, or single quotes when the value holds a `"` (a node missed here is invisible to the
+  // guard).
+  for (const m of xml.matchAll(/<node((?:\s+[\w-]+=(?:"[^"]*"|'[^']*'))*)\s*\/?>/g)) {
     const a: Record<string, string> = {}
-    for (const [, k, v] of m[1].matchAll(/([\w-]+)="([^"]*)"/g)) a[k] = decode(v)
+    for (const [, k, dq, sq] of m[1].matchAll(/([\w-]+)=(?:"([^"]*)"|'([^']*)')/g)) a[k] = decode(dq ?? sq)
     const b = /^\[(\d+),(\d+)\]\[(\d+),(\d+)\]$/.exec(a.bounds ?? '')
     nodes.push({
       text: a.text ?? '', desc: a['content-desc'] ?? '', id: a['resource-id'] ?? '', cls: a.class ?? '', pkg: a.package ?? '',

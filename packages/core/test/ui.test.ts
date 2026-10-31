@@ -69,6 +69,13 @@ describe('parseFocus', () => {
   })
 })
 
+describe('parseUiDump quotes', () => {
+  it("reads attributes the phone writes with single quotes (text containing \")", () => {
+    const xml = `<hierarchy>${node(`text='we "know" it&apos;s' resource-id="" class="android.widget.EditText" package="p" content-desc="" clickable="true" focused="true" password="false" bounds="[0,0][10,10]"`)}</node></hierarchy>`
+    expect(parseUiDump(xml)).toMatchObject([{ text: `we "know" it's`, cls: 'android.widget.EditText', focused: true, bounds: [0, 0, 10, 10] }])
+  })
+})
+
 describe('parseKeyguard', () => {
   it('reads whether the lock screen is showing', () => {
     expect(parseKeyguard('  KeyguardServiceDelegate\n    showing=true\n    showingAndNotOccluded=true\n')).toBe(true)
