@@ -1,5 +1,5 @@
 // Shape of everything main shares with the renderer. Types, plus the default app-window options.
-import type { DeviceStatus, KnownPhone, PhoneApp, PhoneLink, RemoteEntry } from '@tether/core'
+import type { DeviceStatus, KnownPhone, PhoneApp, PhoneLink, PhoneNotification, RemoteEntry } from '@tether/core'
 
 export type EngineState = 'missing' | 'installing' | 'ready'
 export type IdleMinutes = 0 | 5 | 10 | 30
@@ -37,6 +37,7 @@ export const DEFAULT_CLIP_SETTINGS: ClipSettings = { sync: true, hideCodes: true
 export type ClipLinkState = 'off' | 'starting' | 'on' | 'error'
 export interface FileOp { busy: boolean; text: string | null; error: boolean } // LCD line on the Files screen
 export interface Place { name: string; dir: string; count: number | null }
+export interface NotificationItem extends PhoneNotification { app: string } // app: the phone's name for pkg
 
 export interface AppState {
   locked: boolean; hasPin: boolean; lockReason: string | null
@@ -95,6 +96,9 @@ export interface TetherApi {
   installApk(path: string): Promise<void>
   openSaveFolder(): Promise<void>
   pathForFile(f: File): string
+  // notifications (the phone's shade)
+  listNotifications(): Promise<NotificationItem[]>
+  clearNotification(key: string): Promise<void>
   // clipboard + quick keys
   copyClip(id: number): Promise<void>
   sendClip(id: number): Promise<void>

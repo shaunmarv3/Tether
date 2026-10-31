@@ -10,6 +10,7 @@ import { Home } from './screens/Home'
 import { Layouts } from './screens/Layouts'
 import { Lock } from './screens/Lock'
 import { Mirror } from './screens/Mirror'
+import { Notifications } from './screens/Notifications'
 import { Security } from './screens/Security'
 import { Sidebar, type Page } from './Sidebar'
 import { tether } from './tether'
@@ -101,6 +102,7 @@ export function App() {
       {page === 'apps' && <Apps state={state} />}
       {page === 'files' && <Files state={state} dir={filesDir} setDir={(d) => setFilesDir(d.endsWith('/') ? d : `${d}/`)} />}
       {page === 'clipboard' && <Clipboard state={state} />}
+      {page === 'notifications' && <Notifications state={state} />}
       {page === 'layouts' && <Layouts state={state} />}
       {page === 'security' && <Security state={state} />}
 

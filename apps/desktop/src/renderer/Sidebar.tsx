@@ -1,10 +1,11 @@
 import type { AppState } from '../shared/api'
 import { Logo } from './Logo'
 
-export type Page = 'home' | 'mirror' | 'apps' | 'files' | 'clipboard' | 'layouts' | 'security'
+export type Page = 'home' | 'mirror' | 'apps' | 'files' | 'clipboard' | 'notifications' | 'layouts' | 'security'
 
 const PAGES: [Page, string][] = [
-  ['home', 'HOME'], ['apps', 'APPS'], ['files', 'FILES'], ['clipboard', 'CLIPBOARD'], ['layouts', 'LAYOUTS'], ['security', 'SECURITY'],
+  ['home', 'HOME'], ['apps', 'APPS'], ['files', 'FILES'], ['clipboard', 'CLIPBOARD'], ['notifications', 'NOTIFICATIONS'],
+  ['layouts', 'LAYOUTS'], ['security', 'SECURITY'],
 ]
 
 export function PowerIcon() {

@@ -2,8 +2,8 @@
 import { ipcMain, type BrowserWindow, type IpcMainEvent, type IpcMainInvokeEvent, type WebContents } from 'electron'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { isDevicePath, isPackage, isPassword, isSecret, isSerial, type PhoneApp, type RemoteEntry } from '@tether/core'
-import type { Activity, AppOptions, AppState, ClipSettings, IdleMinutes, InputEvent, Place, ViewId } from '../shared/api'
+import { isDevicePath, isNotificationKey, isPackage, isPassword, isSecret, isSerial, type PhoneApp, type RemoteEntry } from '@tether/core'
+import type { Activity, AppOptions, AppState, ClipSettings, IdleMinutes, InputEvent, NotificationItem, Place, ViewId } from '../shared/api'
 
 export interface Handlers {
   getState(): AppState
@@ -42,6 +42,8 @@ export interface Handlers {
   newFolder(path: string): Promise<void>
   installApk(path: string): Promise<void>
   openSaveFolder(): Promise<void>
+  listNotifications(): Promise<NotificationItem[]>
+  clearNotification(key: string): Promise<void>
   copyClip(id: number): Promise<void>
   sendClip(id: number): void
   pasteToPhone(): Promise<void>
@@ -175,6 +177,8 @@ export function registerIpc(win: BrowserWindow, h: Handlers): void {
   ipcMain.handle('tether:clearClips', (e) => { guard(e, true); h.clearClips() })
   ipcMain.handle('tether:setClipSettings', (e, s: unknown) => { guard(e, true); if (!isClipSettings(s)) bad('settings'); h.setClipSettings(s as ClipSettings) })
   ipcMain.handle('tether:screenshot', (e) => { guard(e, true); return h.screenshot() })
+  ipcMain.handle('tether:listNotifications', (e) => { guard(e, true); return h.listNotifications() })
+  ipcMain.handle('tether:clearNotification', (e, key: unknown) => { guard(e, true); if (!isNotificationKey(key)) bad('key'); return h.clearNotification(key as string) })
   ipcMain.handle('tether:screenOff', (e) => { guard(e, true); h.screenOff() })
   ipcMain.handle('tether:saveRecording', (e, data: unknown) => {
     guard(e, true); if (!(data instanceof ArrayBuffer) || data.byteLength === 0) bad('recording'); return h.saveRecording(data as ArrayBuffer)

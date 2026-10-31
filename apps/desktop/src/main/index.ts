@@ -5,9 +5,9 @@ import { createReadStream, existsSync, mkdirSync, rmSync, statSync, writeFileSyn
 import { basename, extname, isAbsolute, join } from 'node:path'
 import { Readable } from 'node:stream'
 import {
-  countPlaces, createLog, DeviceTracker, findEngine, getStatus, hashPin, identify, installApk, installEngine, listApps, listDir,
-  lockdown, makeDir, pickPhone, PinGate, pruneLogs, pullFiles, pushFiles, readActivity, removeFiles, removeStaleForwards, screenshot, sdCards,
-  type Device, type EnginePaths, type PhoneApp, type PhoneLink,
+  clearNotification, countPlaces, createLog, DeviceTracker, findEngine, getStatus, hashPin, identify, installApk, installEngine, listApps, listDir,
+  lockdown, makeDir, pickPhone, PinGate, pruneLogs, pullFiles, pushFiles, readActivity, readNotifications, removeFiles, removeStaleForwards, screenshot, sdCards,
+  type Device, type EnginePaths, type PhoneApp, type PhoneLink, type PhoneNotification,
 } from '@tether/core'
 import { DEFAULT_APP_OPTIONS, type AppOptions, type AppState, type Bounds, type FileOp } from '../shared/api'
 import { ClipLink } from './cliplink'
@@ -33,6 +33,7 @@ const reading = new Set<string>()
 const warned = new Set<string>() // unknown serialNos already announced
 let lastCurrent: string | null = null
 const appsCache = new Map<string, PhoneApp[]>() // by adb serial
+let lastNotifs: PhoneNotification[] = [] // the shade as last shown; CLEAR only works on these
 
 const state: AppState = {
   locked: true, hasPin: !!settings.pinHash, lockReason: null, phoneLinked: false, // locked until a password is set or entered
@@ -199,6 +200,7 @@ function lock(reason: string): void {
   Object.assign(state, { locked: true, lockReason: reason, status: null })
   clipLink.update() // sync stops while locked
   clipLink.clear()
+  lastNotifs = []
   closePreviews()
   push()
 }
@@ -289,6 +291,14 @@ function stamp(): string {
   const d = new Date()
   const p = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`
+}
+
+async function phoneApps(serial: string): Promise<PhoneApp[]> {
+  const cached = appsCache.get(serial)
+  if (cached || !engine) return cached ?? []
+  const apps = await listApps(engine, serial)
+  appsCache.set(serial, apps)
+  return apps
 }
 
 function phone(): { adb: string; serial: string } {
@@ -595,12 +605,7 @@ else {
       },
       listApps: async () => {
         const phone = readyDevice()
-        if (!engine || !phone) return []
-        const cached = appsCache.get(phone.serial)
-        if (cached) return cached
-        const apps = await listApps(engine, phone.serial)
-        appsCache.set(phone.serial, apps)
-        return apps
+        return engine && phone ? phoneApps(phone.serial) : []
       },
       openApp: (pkg, name) => { if (readyDevice()) views.openApp(pkg, name) },
       setAppOptions: (pkg, opts) => {
@@ -674,6 +679,21 @@ else {
       openSaveFolder: async () => {
         mkdirSync(saveDir(), { recursive: true })
         await shell.openPath(saveDir())
+      },
+      listNotifications: async () => {
+        if (!readyDevice()) return []
+        const { adb, serial } = phone()
+        lastNotifs = await readNotifications(adb, serial)
+        const names = new Map((await phoneApps(serial).catch(() => [])).map((a) => [a.pkg, a.name]))
+        return lastNotifs.map((n) => ({ ...n, app: names.get(n.pkg) ?? (n.pkg === 'android' || n.pkg === 'com.android.systemui' ? 'System' : n.pkg) }))
+      },
+      clearNotification: async (key) => {
+        const n = lastNotifs.find((x) => x.key === key)
+        if (!n?.clearable) throw new Error('NOT IN THE SHADE')
+        const { adb, serial } = phone()
+        await clearNotification(adb, serial, key)
+        lastNotifs = lastNotifs.filter((x) => x !== n)
+        act(`NOTIFICATION CLEARED · ${n.pkg}`) // package only, never the text
       },
       copyClip: (id) => clipLink.copyClip(id),
       sendClip: (id) => clipLink.sendClip(id),
