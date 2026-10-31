@@ -2,7 +2,8 @@
 // to %LOCALAPPDATA%\Tether\pilot.token. Shared by both sides; every request is checked here before main acts on it.
 
 export const PILOT_PIPE = '\\\\.\\pipe\\tether-pilot'
-export const TOOLS = ['start_task', 'list_apps', 'open_app', 'read_screen', 'screenshot', 'tap', 'type', 'swipe', 'key', 'end_task'] as const
+export const TOOLS = ['start_task', 'list_apps', 'open_app', 'read_screen', 'screenshot', 'tap', 'long_press', 'type', 'swipe', 'key', 'wait_for_change',
+  'end_task'] as const
 export type ToolName = (typeof TOOLS)[number]
 export interface PilotRequest { token: string; id: number; tool: ToolName; args: Record<string, unknown> }
 export type PilotReply =
@@ -39,10 +40,13 @@ export function badArgs(tool: ToolName, a: Record<string, unknown>): string | nu
       if (a.to !== undefined && a.to !== null && !str(a.to, 1, 100)) return 'to: up to 100 characters'
       return null
     case 'open_app': return str(a.app, 1, 100) ? null : 'app: 1–100 characters'
-    case 'tap': return coord(a.x) && coord(a.y) ? null : 'x, y: whole phone pixels 0–10000'
+    case 'tap': case 'long_press': return coord(a.x) && coord(a.y) ? null : 'x, y: whole phone pixels 0–10000'
     case 'swipe': return [a.x1, a.y1, a.x2, a.y2].every(coord) ? null : 'x1, y1, x2, y2: whole phone pixels 0–10000'
     case 'type': return str(a.text, 1, 1000) ? null : 'text: 1–1000 characters'
     case 'key': return a.key === 'back' || a.key === 'home' || a.key === 'enter' ? null : 'key: back, home or enter'
+    case 'wait_for_change':
+      return a.timeout_s === undefined || (Number.isInteger(a.timeout_s) && (a.timeout_s as number) >= 5 && (a.timeout_s as number) <= 300)
+        ? null : 'timeout_s: whole seconds 5–300'
     case 'end_task': return a.summary === undefined || str(a.summary, 0, 2000) ? null : 'summary: up to 2000 characters'
     default: return null
   }

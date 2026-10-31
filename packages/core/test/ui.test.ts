@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatScreen, nodeAt, parseFocus, parseUiDump, screenPackage, type UiNode } from '../src/ui'
+import { formatScreen, nodeAt, parseFocus, parseKeyguard, parseUiDump, screenPackage, type UiNode } from '../src/ui'
 
 // Synthetic dump (shape of `uiautomator dump`), never a real one.
 const node = (attrs: string) => `<node index="0" ${attrs} checkable="false" checked="false" enabled="true" focusable="true" scrollable="false" long-clickable="false" selected="false">`
@@ -66,6 +66,14 @@ describe('parseFocus', () => {
     expect(parseFocus('Window manager\n  mCurrentFocus=Window{1a2b u0 com.whatsapp/com.whatsapp.Conversation}\n')).toBe('com.whatsapp')
     expect(parseFocus('  mCurrentFocus=Window{9f u0 NotificationShade}')).toBeNull()
     expect(parseFocus('nothing here')).toBeNull()
+  })
+})
+
+describe('parseKeyguard', () => {
+  it('reads whether the lock screen is showing', () => {
+    expect(parseKeyguard('  KeyguardServiceDelegate\n    showing=true\n    showingAndNotOccluded=true\n')).toBe(true)
+    expect(parseKeyguard('  KeyguardServiceDelegate\n    showing=false\n')).toBe(false)
+    expect(parseKeyguard('nothing here')).toBe(false)
   })
 })
 

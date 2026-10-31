@@ -53,6 +53,16 @@ describe('badArgs', () => {
   it('tools without args accept {}', () => {
     for (const tool of ['list_apps', 'read_screen', 'screenshot'] as const) expect(badArgs(tool, {})).toBeNull()
   })
+  it('long_press and wait_for_change', () => {
+    expect(badArgs('long_press', { x: 10, y: 2000 })).toBeNull()
+    expect(badArgs('long_press', { x: -1, y: 0 })).not.toBeNull()
+    expect(badArgs('wait_for_change', {})).toBeNull()
+    expect(badArgs('wait_for_change', { timeout_s: 5 })).toBeNull()
+    expect(badArgs('wait_for_change', { timeout_s: 300 })).toBeNull()
+    for (const timeout_s of [4, 301, 10.5, '60']) expect(badArgs('wait_for_change', { timeout_s }), String(timeout_s)).not.toBeNull()
+    expect(parseRequest(req({ tool: 'long_press', args: { x: 1, y: 2 } }))).not.toBeNull()
+    expect(parseRequest(req({ tool: 'wait_for_change' }))).not.toBeNull()
+  })
 })
 
 describe('Lines', () => {

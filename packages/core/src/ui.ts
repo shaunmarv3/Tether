@@ -83,8 +83,13 @@ export async function dumpUi(adb: string, serial: string): Promise<UiNode[] | nu
   return r.code === 0 ? parseUiDump(r.stdout) : null
 }
 
-export async function focusedPackage(adb: string, serial: string): Promise<string | null> {
-  return parseFocus(await shell(adb, serial, ['dumpsys', 'window'], 'dumpsys window'))
+export function parseKeyguard(dumpsysWindow: string): boolean {
+  return /KeyguardServiceDelegate\s+showing=true/.test(dumpsysWindow)
+}
+
+export async function windowState(adb: string, serial: string): Promise<{ focus: string | null; keyguard: boolean }> {
+  const out = await shell(adb, serial, ['dumpsys', 'window'], 'dumpsys window')
+  return { focus: parseFocus(out), keyguard: parseKeyguard(out) }
 }
 
 export async function tapAt(adb: string, serial: string, x: number, y: number): Promise<void> {
@@ -95,6 +100,19 @@ export async function tapAt(adb: string, serial: string, x: number, y: number): 
 export async function swipeOn(adb: string, serial: string, x1: number, y1: number, x2: number, y2: number): Promise<void> {
   if (![x1, y1, x2, y2].every(isCoord)) throw new Error('bad position')
   await shell(adb, serial, ['input', 'swipe', String(x1), String(y1), String(x2), String(y2), '300'], 'swipe')
+}
+
+export async function longPressAt(adb: string, serial: string, x: number, y: number): Promise<void> {
+  if (!isCoord(x) || !isCoord(y)) throw new Error('bad position')
+  await shell(adb, serial, ['input', 'swipe', String(x), String(y), String(x), String(y), '600'], 'long press')
+}
+
+// Empty the focused field in one call: MOVE_END, then DEL and FORWARD_DEL `chars` times each (MOVE_END only reaches the
+// end of the cursor's line, so the forward deletes clear any lines below it).
+export async function clearField(adb: string, serial: string, chars: number): Promise<void> {
+  if (!Number.isInteger(chars) || chars < 0) throw new Error('bad length')
+  const n = Math.min(chars, 2000)
+  await shell(adb, serial, ['input', 'keyevent', '123', ...Array<string>(n).fill('67'), ...Array<string>(n).fill('112')], 'clear field')
 }
 
 export async function pressKey(adb: string, serial: string, key: PhoneKey): Promise<void> {
