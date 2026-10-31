@@ -1,0 +1,108 @@
+// The phone's screen as text (uiautomator) and the AI pilot's hands (adb input). Constant commands + checked integers
+// and packages only (rule 7).
+import { isPackage } from './apps'
+import { isSerial } from './devices'
+import { run } from './run'
+
+export interface UiNode {
+  text: string; desc: string; id: string; cls: string; pkg: string
+  bounds: [number, number, number, number] // left, top, right, bottom (phone pixels)
+  clickable: boolean; editable: boolean; focused: boolean; password: boolean
+}
+
+const ENTITIES: Record<string, string> = { lt: '<', gt: '>', quot: '"', apos: "'", amp: '&' }
+const decode = (s: string) => s.replace(/&(#x[0-9a-f]+|#\d+|lt|gt|quot|apos|amp);/gi, (_, e: string) =>
+  e[0] === '#' ? String.fromCodePoint(e[1] === 'x' || e[1] === 'X' ? Number.parseInt(e.slice(2), 16) : Number(e.slice(1))) : ENTITIES[e.toLowerCase()])
+
+export function parseUiDump(xml: string): UiNode[] | null {
+  if (!xml.includes('<hierarchy')) return null
+  const nodes: UiNode[] = []
+  for (const m of xml.matchAll(/<node((?:\s+[\w-]+="[^"]*")*)\s*\/?>/g)) {
+    const a: Record<string, string> = {}
+    for (const [, k, v] of m[1].matchAll(/([\w-]+)="([^"]*)"/g)) a[k] = decode(v)
+    const b = /^\[(\d+),(\d+)\]\[(\d+),(\d+)\]$/.exec(a.bounds ?? '')
+    nodes.push({
+      text: a.text ?? '', desc: a['content-desc'] ?? '', id: a['resource-id'] ?? '', cls: a.class ?? '', pkg: a.package ?? '',
+      bounds: b ? [Number(b[1]), Number(b[2]), Number(b[3]), Number(b[4])] : [0, 0, 0, 0],
+      clickable: a.clickable === 'true', editable: (a.class ?? '').endsWith('EditText'), focused: a.focused === 'true',
+      password: a.password === 'true',
+    })
+  }
+  return nodes
+}
+
+export function screenPackage(nodes: UiNode[]): string | null {
+  return nodes[0]?.pkg || null
+}
+
+const area = (n: UiNode) => (n.bounds[2] - n.bounds[0]) * (n.bounds[3] - n.bounds[1])
+const smallest = (list: UiNode[]) => list.reduce<UiNode | null>((best, n) => (!best || area(n) < area(best) ? n : best), null)
+
+export function nodeAt(nodes: UiNode[], x: number, y: number): UiNode | null {
+  const hit = nodes.filter(({ bounds: [l, t, r, b] }) => x >= l && x < r && y >= t && y < b)
+  return smallest(hit.filter((n) => n.clickable)) ?? smallest(hit)
+}
+
+export function parseFocus(dumpsysWindow: string): string | null {
+  return /mCurrentFocus=Window\{\S+ \S+ ([\w.]+)\//.exec(dumpsysWindow)?.[1] ?? null
+}
+
+// One line per node worth knowing about: `<Class> "text" [desc] id=<name> @x,y clickable editable focused`.
+export function formatScreen(nodes: UiNode[]): string {
+  return nodes.filter((n) => n.text || n.desc || n.clickable || n.editable).map((n) => {
+    const text = n.password && n.text ? '•••' : n.text.replace(/\s*\n\s*/g, ' ')
+    const [l, t, r, b] = n.bounds
+    return [
+      n.cls.split('.').pop(),
+      text && `"${text}"`,
+      n.desc && `[${n.desc.replace(/\s*\n\s*/g, ' ')}]`,
+      n.id && `id=${n.id.split(':id/').pop()}`,
+      `@${Math.round((l + r) / 2)},${Math.round((t + b) / 2)}`,
+      n.clickable && 'clickable', n.editable && 'editable', n.focused && 'focused',
+    ].filter(Boolean).join(' ')
+  }).join('\n')
+}
+
+// --- adb ---
+
+export type PhoneKey = 'back' | 'home' | 'enter'
+const KEYCODES: Record<PhoneKey, number> = { back: 4, home: 3, enter: 66 }
+const isCoord = (n: number) => Number.isInteger(n) && n >= 0 && n <= 10_000
+
+async function shell(adb: string, serial: string, args: string[], what: string): Promise<string> {
+  if (!isSerial(serial)) throw new Error(`bad serial: ${serial}`)
+  const r = await run(adb, ['-s', serial, 'shell', ...args])
+  if (r.code !== 0) throw new Error(r.stderr.trim() || `${what} failed`)
+  return r.stdout
+}
+
+// null = no UI tree (a game or video that never goes idle, or uiautomator busy).
+export async function dumpUi(adb: string, serial: string): Promise<UiNode[] | null> {
+  if (!isSerial(serial)) throw new Error(`bad serial: ${serial}`)
+  const r = await run(adb, ['-s', serial, 'exec-out', 'uiautomator', 'dump', '/dev/tty'], { timeoutMs: 10_000 })
+  return r.code === 0 ? parseUiDump(r.stdout) : null
+}
+
+export async function focusedPackage(adb: string, serial: string): Promise<string | null> {
+  return parseFocus(await shell(adb, serial, ['dumpsys', 'window'], 'dumpsys window'))
+}
+
+export async function tapAt(adb: string, serial: string, x: number, y: number): Promise<void> {
+  if (!isCoord(x) || !isCoord(y)) throw new Error('bad position')
+  await shell(adb, serial, ['input', 'tap', String(x), String(y)], 'tap')
+}
+
+export async function swipeOn(adb: string, serial: string, x1: number, y1: number, x2: number, y2: number): Promise<void> {
+  if (![x1, y1, x2, y2].every(isCoord)) throw new Error('bad position')
+  await shell(adb, serial, ['input', 'swipe', String(x1), String(y1), String(x2), String(y2), '300'], 'swipe')
+}
+
+export async function pressKey(adb: string, serial: string, key: PhoneKey): Promise<void> {
+  if (!(key in KEYCODES)) throw new Error('bad key')
+  await shell(adb, serial, ['input', 'keyevent', String(KEYCODES[key])], 'key')
+}
+
+export async function launchApp(adb: string, serial: string, pkg: string): Promise<void> {
+  if (!isPackage(pkg)) throw new Error(`bad package: ${pkg}`)
+  await shell(adb, serial, ['monkey', '-p', pkg, '-c', 'android.intent.category.LAUNCHER', '1'], 'open app')
+}
