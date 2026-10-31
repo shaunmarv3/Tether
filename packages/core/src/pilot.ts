@@ -110,11 +110,14 @@ export function screenMark(a: PilotAction, nodes: UiNode[] | null, popups: Popup
 export class PilotGate {
   task: PilotTask | null = null
   askSends = true // the AI PILOT page switch; OFF skips the popup only for sends to the plan's `to`
+  // The last chat name read on screen, per app: a full-screen picker (emoji search) can cover it.
+  private seen: { pkg: string | null; title: string } | null = null
   private steps = 0
   private last = 0
 
   begin(task: PilotTask, now: number): void {
     this.task = task
+    this.seen = null
     this.steps = 0
     this.last = now
   }
@@ -129,12 +132,18 @@ export class PilotGate {
     if (now - this.last > IDLE_MS) return block('TASK TIMED OUT (10 MIN IDLE)', true)
     // A chat task (plan with a `to`) has no step limit (user, 2026-11-01): every send still asks, STOP and idle still end it.
     if (!this.task.to && this.steps >= STEP_LIMIT) return block(`STEP LIMIT (${STEP_LIMIT}) REACHED`, true)
+    const title = nodes && chatTitle(nodes)
+    if (title) this.seen = { pkg: screenPackage(nodes), title }
     const v = this.judge(this.task, a, fg, nodes, popups)
     if (v.v !== 'block') {
       this.steps++
       this.last = now
     }
     return v
+  }
+
+  private chat(nodes: UiNode[]): string | null {
+    return chatTitle(nodes) ?? (this.seen && this.seen.pkg === screenPackage(nodes) ? this.seen.title : null)
   }
 
   private judge(task: PilotTask, a: PilotAction, fg: string | null, nodes: UiNode[] | null, popups: Popup[]): Verdict {
@@ -160,7 +169,7 @@ export class PilotGate {
     const popup = popupAt(a, popups)
     if (popup) {
       if (isMoneyApp(popup.pkg)) return block('A MONEY APP IS OPEN: TASK STOPPED', true)
-      return (task.to && wrongChat(task.to, nodes && chatTitle(nodes))) || { v: 'ask', why: 'POPUP', send: null }
+      return (task.to && wrongChat(task.to, nodes && this.chat(nodes))) || { v: 'ask', why: 'POPUP', send: null }
     }
     // No UI tree (a game, or uiautomator busy): a tap or Enter can't be classified, so it asks; scrolling can't send.
     const what = a.kind === 'tap' ? 'TAP' : a.kind === 'press' ? 'LONG PRESS' : 'PRESS ENTER'
@@ -171,7 +180,7 @@ export class PilotGate {
     if (panel && (a.kind !== 'swipe' || target?.clickable)) return { v: 'ask', why: 'SYSTEM PANEL', send: null }
     if (!r) return { v: 'allow' }
     if (r.kind === 'other') return { v: 'ask', why: r.word.toUpperCase(), send: null }
-    const to = chatTitle(nodes)
+    const to = this.chat(nodes)
     const wrong = task.to && wrongChat(task.to, to)
     if (wrong) return wrong
     const send = { to, message: r.kind === 'react' ? r.word : messageDraft(nodes) }

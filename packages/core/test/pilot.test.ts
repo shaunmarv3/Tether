@@ -245,6 +245,24 @@ describe('PilotGate', () => {
     expect(screenMark(heart, chat('Mom'), row)).not.toBe(screenMark(heart, chat('Mom'), []))
   })
 
+  it('a full-screen emoji search covering the chat uses the last chat seen in that app', () => {
+    const sheet = [node({ cls: 'android.widget.FrameLayout', bounds: [0, 0, 1080, 2400] }),
+      node({ cls: 'android.widget.EditText', text: 'wave', editable: true, focused: true, bounds: [100, 220, 1000, 310] }),
+      node({ cls: 'android.widget.Button', desc: '👋', id: 'com.whatsapp:id/emoji', clickable: true, bounds: [0, 330, 120, 440] })]
+    const wave = { kind: 'tap', x: 60, y: 385 } as const
+    const g = started({ to: 'You' })
+    expect(g.check({ kind: 'read' }, WA, chat('+1 555 0100 (You)'), 1).v).toBe('allow')
+    expect(g.check(wave, WA, sheet, 2)).toEqual({ v: 'ask', why: 'REACT', send: { to: '+1 555 0100 (You)', message: '👋' } })
+    const other = started({ to: 'You' })
+    other.check({ kind: 'read' }, WA, chat('Monica'), 1)
+    expect(other.check(wave, WA, sheet, 2)).toMatchObject({ v: 'block', stop: true })
+    expect(started({ to: 'You' }).check(wave, WA, sheet, 2)).toMatchObject({ v: 'block', stop: true }) // never saw a chat
+    const ig = started({ to: 'You', apps: [WA, 'com.instagram.android'] })
+    ig.check({ kind: 'read' }, WA, chat('You'), 1)
+    const igSheet = sheet.map((n) => ({ ...n, pkg: 'com.instagram.android' }))
+    expect(ig.check(wave, 'com.instagram.android', igSheet, 2)).toMatchObject({ v: 'block', stop: true }) // other app
+  })
+
   it('never types into a password field', () => {
     const pw = node({ cls: 'android.widget.EditText', editable: true, focused: true, password: true, bounds: [0, 500, 1080, 600] })
     expect(started().check({ kind: 'type', text: '1234' }, WA, [root, pw], 1)).toMatchObject({ v: 'block', stop: false })
