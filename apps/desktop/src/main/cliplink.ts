@@ -108,6 +108,12 @@ export class ClipLink {
     this.set('on')
   }
 
+  // A phone screenshot went onto the PC clipboard as an image (not part of the text sync; size = file bytes).
+  noteImage(size: number): void {
+    this.add('phone', 'PHONE SCREENSHOT', false, 'IMAGE').size = size
+    this.deps.onChange()
+  }
+
   private add(dir: 'phone' | 'pc', text: string, secret: boolean, note: string | null = null): Clip {
     const clip: Clip = {
       id: this.nextId++, dir, text: secret ? null : text.slice(0, PREVIEW), secret, size: Buffer.byteLength(text),

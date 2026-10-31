@@ -22,7 +22,8 @@ export function loadSettings(): Settings {
   const defaults: Settings = { knownPhones: [], idleMinutes: 10, pins: [], apps: {}, layouts: [], clip: DEFAULT_CLIP_SETTINGS }
   if (!existsSync(paths.settings)) return defaults
   try {
-    return { ...defaults, ...(JSON.parse(readFileSync(paths.settings, 'utf8')) as Partial<Settings>) }
+    const saved = JSON.parse(readFileSync(paths.settings, 'utf8')) as Partial<Settings>
+    return { ...defaults, ...saved, clip: { ...DEFAULT_CLIP_SETTINGS, ...saved.clip } } // older files lack newer clip fields
   } catch {
     return defaults
   }

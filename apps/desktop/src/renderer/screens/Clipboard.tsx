@@ -72,21 +72,23 @@ export function Clipboard({ state }: { state: AppState }) {
             const left = wipeLeft(c, now)
             const gone = c.note === 'WIPED'
             const tooBig = c.note === 'TOO BIG TO SEND'
+            const image = c.note === 'IMAGE'
             return (
               <div key={c.id} className={`clip-row ${c.secret ? 'secret' : ''}`}>
                 <span className="dir-chip mono">{DIR_LABEL[c.dir]}</span>
                 <div className="clip-body">
                   <span className="clip-text">{c.secret ? '●●●●●● ONE-TIME CODE' : c.text}</span>
                   <span className={`mono tiny ${c.secret && !gone ? 'amber-text' : 'muted'}`}>
-                    {gone ? 'WIPED' : c.wipeAt ? `HIDDEN · WIPES IN ${left} S` : tooBig ? `TOO BIG TO SEND · ${fmtSize(c.size)}` : ago(c.at, now)}
+                    {gone ? 'WIPED' : c.wipeAt ? `HIDDEN · WIPES IN ${left} S` : tooBig ? `TOO BIG TO SEND · ${fmtSize(c.size)}`
+                      : image ? `ON THE PC CLIPBOARD · ${fmtSize(c.size)} · ${ago(c.at, now)}` : ago(c.at, now)}
                   </span>
                 </div>
-                <div className="row clip-keys">
+                {!image && <div className="row clip-keys">
                   <button className="small-key" disabled={gone} onClick={() => run(tether.copyClip(c.id))}>COPY</button>
                   <button className="small-key" disabled={gone || tooBig} onClick={() => run(tether.sendClip(c.id))}>
                     {c.dir === 'pc' ? 'RESEND' : 'SEND'}
                   </button>
-                </div>
+                </div>}
               </div>
             )
           })}
@@ -106,6 +108,7 @@ export function Clipboard({ state }: { state: AppState }) {
             <h2 id="priv-h" className="card-head">PRIVACY</h2>
             <div className="col toggles">
               <Switch label="Hide one-time codes" on={s.hideCodes} set={(hideCodes) => set({ hideCodes })} />
+              <Switch label="Phone screenshots to PC clipboard" on={s.screenshots} set={(screenshots) => set({ screenshots })} />
               <Switch label="Keep out of Windows clipboard history" on={s.keepOutOfHistory} set={(keepOutOfHistory) => set({ keepOutOfHistory })} />
             </div>
             <div className="col idle">

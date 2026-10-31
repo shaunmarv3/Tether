@@ -69,7 +69,7 @@ const isClipId = (n: unknown): n is number => Number.isInteger(n) && (n as numbe
 function isClipSettings(o: unknown): o is ClipSettings {
   const c = o as ClipSettings
   return typeof o === 'object' && o !== null && isBool(c.sync) && isBool(c.hideCodes) && isBool(c.keepOutOfHistory) &&
-    [30, 60, 120].includes(c.wipeSeconds)
+    [30, 60, 120].includes(c.wipeSeconds) && isBool(c.screenshots)
 }
 
 function isAppOptions(o: unknown): o is AppOptions {

@@ -32,8 +32,8 @@ export interface Layout { name: string; windows: LayoutWindow[] }
 // Clipboard. A secret clip (one-time code) never reaches the renderer: text is null.
 export interface Clip { id: number; dir: 'phone' | 'pc'; text: string | null; secret: boolean; size: number; at: string; wipeAt: string | null; note: string | null }
 export type WipeSeconds = 30 | 60 | 120
-export interface ClipSettings { sync: boolean; hideCodes: boolean; keepOutOfHistory: boolean; wipeSeconds: WipeSeconds }
-export const DEFAULT_CLIP_SETTINGS: ClipSettings = { sync: true, hideCodes: true, keepOutOfHistory: true, wipeSeconds: 60 }
+export interface ClipSettings { sync: boolean; hideCodes: boolean; keepOutOfHistory: boolean; wipeSeconds: WipeSeconds; screenshots: boolean } // screenshots: phone screenshots → PC clipboard
+export const DEFAULT_CLIP_SETTINGS: ClipSettings = { sync: true, hideCodes: true, keepOutOfHistory: true, wipeSeconds: 60, screenshots: true }
 export type ClipLinkState = 'off' | 'starting' | 'on' | 'error'
 export interface FileOp { busy: boolean; text: string | null; error: boolean } // LCD line on the Files screen
 export interface Place { name: string; dir: string; count: number | null }

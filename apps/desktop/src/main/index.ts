@@ -1,12 +1,12 @@
 import {
-  app, BrowserWindow, clipboard, dialog, globalShortcut, Menu, Notification, powerMonitor, protocol, screen, shell, Tray,
+  app, BrowserWindow, clipboard, ClipboardItem, dialog, globalShortcut, Menu, nativeImage, Notification, powerMonitor, protocol, screen, shell, Tray,
 } from 'electron'
 import { createReadStream, existsSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { basename, extname, isAbsolute, join } from 'node:path'
 import { Readable } from 'node:stream'
 import {
   clearNotification, countPlaces, createLog, DeviceTracker, findEngine, getStatus, hashPin, identify, installApk, installEngine, listApps, listDir,
-  lockdown, makeDir, pickPhone, PinGate, pruneLogs, pullFiles, pushFiles, readActivity, readNotifications, removeFiles, removeStaleForwards, screenshot, sdCards,
+  lockdown, makeDir, newestScreenshot, pickPhone, PinGate, pruneLogs, pullFiles, pushFiles, readActivity, readNotifications, removeFiles, removeStaleForwards, screenshot, sdCards, ShotTracker,
   type Device, type EnginePaths, type PhoneApp, type PhoneLink, type PhoneNotification,
 } from '@tether/core'
 import { DEFAULT_APP_OPTIONS, type AppOptions, type AppState, type Bounds, type FileOp } from '../shared/api'
@@ -34,6 +34,9 @@ const warned = new Set<string>() // unknown serialNos already announced
 let lastCurrent: string | null = null
 const appsCache = new Map<string, PhoneApp[]>() // by adb serial
 let lastNotifs: PhoneNotification[] = [] // the shade as last shown; CLEAR only works on these
+const shots = new ShotTracker()
+let shotSerial: string | null = null
+let shotBusy = false
 
 const state: AppState = {
   locked: true, hasPin: !!settings.pinHash, lockReason: null, phoneLinked: false, // locked until a password is set or entered
@@ -293,6 +296,44 @@ function stamp(): string {
   return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`
 }
 
+// Phone screenshot → PC clipboard (Phase 2 spec §4.2). Only files that appear while unlocked with this phone ready, once
+// their size is steady. The pulled copy is deleted right away.
+async function shotTick(): Promise<void> {
+  if (shotBusy) return
+  const d = readyDevice()
+  const on = !!engine && !!d && !state.locked && settings.clip.screenshots
+  if (!on || d.serial !== shotSerial) {
+    shots.reset()
+    shotSerial = on ? d.serial : null
+    if (!on) return
+  }
+  shotBusy = true
+  try {
+    const path = shots.see(await newestScreenshot(engine!.adb, d.serial))
+    if (path) await copyShot(engine!.adb, d.serial, path)
+  } catch (err) {
+    log(`screenshot copy failed: ${(err as Error).message}`)
+  } finally {
+    shotBusy = false
+  }
+}
+
+async function copyShot(adb: string, serial: string, path: string): Promise<void> {
+  const dir = join(paths.root, 'shot')
+  mkdirSync(dir, { recursive: true })
+  const file = join(dir, basename(path))
+  try {
+    const { failed } = await pullFiles(adb, serial, [path], dir)
+    const img = failed.length ? null : nativeImage.createFromPath(file)
+    if (!img || img.isEmpty()) throw new Error('could not read the screenshot')
+    const png = img.toPNG()
+    await clipboard.write([new ClipboardItem({ 'image/png': new Blob([new Uint8Array(png)], { type: 'image/png' }) })])
+    clipLink.noteImage(statSync(file).size)
+  } finally {
+    rmSync(file, { force: true })
+  }
+}
+
 async function phoneApps(serial: string): Promise<PhoneApp[]> {
   const cached = appsCache.get(serial)
   if (cached || !engine) return cached ?? []
@@ -524,6 +565,7 @@ else {
       const idle = settings.idleMinutes
       if (idle && !state.locked && powerMonitor.getSystemIdleTime() >= idle * 60) autoLock(`IDLE ${idle} MIN`)
     }, 30_000))
+    timers.push(setInterval(() => void shotTick(), 2000))
     for (let i = 0; i < 9; i++) {
       if (!globalShortcut.register(`Control+Alt+${i + 1}`, () => launchLayout(i))) log(`shortcut Ctrl+Alt+${i + 1} taken`)
     }
