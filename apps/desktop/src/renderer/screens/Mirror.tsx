@@ -88,7 +88,7 @@ export function Mirror({ state, recordAsked, clearRecordAsk }: { state: AppState
           <span className="led amber blink" />
           <span className="mono small amber-text">AI</span>
           <span className="grow pilot-step">{ai.log[0]?.text ?? ai.goal}</span>
-          <span className="mono tiny muted">STEP {ai.log.filter((s) => s.verdict !== 'blocked').length} / 40</span>
+          <span className="mono tiny muted">STEP {ai.log.filter((s) => s.verdict !== 'blocked').length} / 200</span>
           <button className="small-key pilot-strip-stop" onClick={() => void tether.pilotStop()}>STOP</button>
         </div>
       )}

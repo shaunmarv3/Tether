@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { AppState, PilotQuestion, PilotTaskView } from '../../shared/api'
 import { tether } from '../tether'
-import { ago, useNow } from './Clipboard'
+import { ago, Switch, useNow } from './Clipboard'
 import { errText } from './Files'
 
 const QUESTION_S = 120 // main answers NO after this
@@ -11,17 +11,23 @@ const STATUS: Record<PilotTaskView['status'], string> = {
 const LED: Record<string, string> = { ok: 'on', asked: 'amber', blocked: 'red' }
 const doneSteps = (t: PilotTaskView) => t.log.filter((s) => s.verdict !== 'blocked').length
 
-// The plan/send/risky question, over every page. DENY has focus so a stray Enter never says yes.
+// The plan/send/risky/unlock question, over every page. The "no" key has focus so a stray Enter never says yes.
 export function PilotAsk({ q }: { q: PilotQuestion }) {
   const now = useNow()
   const [since, setSince] = useState(Date.now())
-  useEffect(() => setSince(Date.now()), [q.id])
+  const [text, setText] = useState(q.message ?? '')
+  useEffect(() => { setSince(Date.now()); setText(q.message ?? '') }, [q.id])
   const left = Math.max(0, QUESTION_S - Math.floor((now - since) / 1000))
-  const answer = (yes: boolean) => void tether.pilotAnswer(q.id, yes)
-  const title = q.kind === 'plan' ? 'AI WANTS TO START A TASK' : q.kind === 'send' ? 'AI WANTS TO SEND'
+  const react = q.kind === 'send' && q.why === 'REACT'
+  const editable = q.kind === 'send' && !react
+  const answer = (yes: boolean) => void tether.pilotAnswer(q.id, yes, editable && yes ? text : undefined)
+  const title = q.kind === 'plan' ? 'AI WANTS TO START A TASK' : q.kind === 'unlock' ? `${q.app.toUpperCase()} IS LOCKED`
+    : react ? 'AI WANTS TO REACT' : q.kind === 'send' ? 'AI WANTS TO SEND'
     : q.why === 'SETTINGS' ? 'AI WANTS TO CHANGE SETTINGS' : q.why === 'SYSTEM DIALOG' ? 'AI WANTS TO ANSWER A SYSTEM POPUP'
+    : q.why === 'SYSTEM PANEL' ? 'AI WANTS TO TAP IN SYSTEM PANELS'
     : q.why.includes('WITHOUT SCREEN TEXT') ? `AI WANTS TO ${q.why}` : `AI WANTS TO TAP ${q.why}`
-  const [no, yes] = q.kind === 'plan' ? ['DENY', 'ALLOW'] : q.kind === 'send' ? ["DON'T SEND", 'SEND'] : ['NO', 'YES']
+  const [no, yes] = q.kind === 'plan' ? ['DENY', 'ALLOW'] : q.kind === 'unlock' ? ['STOP', 'DONE']
+    : react ? ["DON'T REACT", 'REACT'] : q.kind === 'send' ? ["DON'T SEND", 'SEND'] : ['NO', 'YES']
 
   return (
     <div className="pilot-ask-back" onKeyDown={(e) => { if (e.key === 'Escape') answer(false) }}>
@@ -42,14 +48,24 @@ export function PilotAsk({ q }: { q: PilotQuestion }) {
         {q.kind === 'send' && (
           <dl className="specs">
             <dt>TO</dt><dd>{q.to ?? <span className="danger-text">CAN'T READ IT</span>}<span className="mono tiny muted pilot-from"> · FROM THE PHONE SCREEN</span></dd>
-            <dt>MESSAGE</dt><dd className="pilot-msg">{q.message || <span className="muted">(NO TEXT)</span>}</dd>
+            {react ? <><dt>REACTION</dt><dd className="pilot-emoji">{q.message}</dd></> : (
+              <>
+                <dt>MESSAGE</dt>
+                <dd className="col tight">
+                  <textarea className="pilot-msg pilot-edit" value={text} maxLength={1000} rows={3} aria-label="Message to send"
+                    onChange={(e) => setText(e.target.value)} />
+                  <span className="mono tiny muted">EDIT IT IF YOU LIKE · THIS IS EXACTLY WHAT GETS SENT</span>
+                </dd>
+              </>
+            )}
             <dt>APP</dt><dd>{q.app}</dd>
           </dl>
         )}
         {q.kind === 'risky' && <dl className="specs"><dt>APP</dt><dd>{q.app}</dd></dl>}
+        {q.kind === 'unlock' && <p className="card-note">Unlock it on your phone, then press DONE. The AI waits and never types your PIN or password.</p>}
         <div className="row">
           <button className="key wide grow-key" autoFocus onClick={() => answer(false)}>{no}</button>
-          <button className="key wide grow-key accent" onClick={() => answer(true)}>{yes}</button>
+          <button className="key wide grow-key accent" disabled={editable && !text.trim()} onClick={() => answer(true)}>{yes}</button>
         </div>
       </div>
     </div>
@@ -59,7 +75,7 @@ export function PilotAsk({ q }: { q: PilotQuestion }) {
 export function Pilot({ state }: { state: AppState }) {
   const now = useNow()
   const [error, setError] = useState<string | null>(null)
-  const { connected, command, current: t, past } = state.pilot
+  const { connected, command, current: t, past, askSends } = state.pilot
   const live = !!t && (t.status === 'waiting' || t.status === 'running')
   const run = (p: Promise<void>) => { setError(null); p.catch((err) => setError(errText(err))) }
   const claude = connected === true ? 'CONNECTED' : connected === false ? 'NOT CONNECTED' : 'CONNECT BY HAND'
@@ -76,7 +92,7 @@ export function Pilot({ state }: { state: AppState }) {
           <span className="sec-big">{live && <span className="blink">● </span>}{t ? STATUS[t.status] : '● NO TASK'}</span>
           <div className="sec-grid">
             <div className="col tight"><span className="dim tiny">CLAUDE CODE</span><span>{claude}</span></div>
-            <div className="col tight"><span className="dim tiny">STEPS</span><span>{t ? `${doneSteps(t)} / 40` : '—'}</span></div>
+            <div className="col tight"><span className="dim tiny">STEPS</span><span>{t ? `${doneSteps(t)} / 200` : '—'}</span></div>
             <div className="col tight"><span className="dim tiny">APPS ALLOWED</span><span>{t ? t.apps.join(', ').toUpperCase() : 'NONE'}</span></div>
             <div className="col tight"><span className="dim tiny">STOP KEY</span><span>CTRL+ALT+X</span></div>
           </div>
@@ -149,12 +165,21 @@ export function Pilot({ state }: { state: AppState }) {
         <div className="col stack">
           <section className="card" aria-labelledby="rules-h">
             <h2 id="rules-h" className="card-head">THE RULES</h2>
+            <div className="col toggles">
+              <Switch label="Ask me before every send" on={askSends} set={(on) => run(tether.pilotAskSends(on))} />
+            </div>
+            {!askSends && (
+              <span className="mono tiny amber-text" role="status">
+                SENDS TO THE PLANNED PERSON GO WITHOUT ASKING · ANYONE ELSE IS STILL BLOCKED · BACK ON WHEN TETHER LOCKS
+              </span>
+            )}
             <ul className="pilot-rules card-note">
               <li>Nothing happens until you ALLOW a plan.</li>
               <li>Only the apps in the plan can be opened.</li>
-              <li>Sends show who and what first. A wrong chat stops the task.</li>
-              <li>Deletes, installs and settings ask you too.</li>
-              <li>Money apps are always blocked.</li>
+              <li>Sends and reactions show who and what first. A wrong chat stops the task.</li>
+              <li>Deletes, installs, settings and system panels ask you too.</li>
+              <li>Lock screens wait for you to unlock them.</li>
+              <li>Money apps and payment buttons are always blocked.</li>
             </ul>
           </section>
           <section className="lcd activity" aria-label="Past tasks">

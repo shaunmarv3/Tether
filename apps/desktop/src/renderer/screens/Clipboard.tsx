@@ -33,7 +33,7 @@ export function linkLine(state: AppState): string | null {
   return null
 }
 
-function Switch({ label, on, set }: { label: string; on: boolean; set: (on: boolean) => void }) {
+export function Switch({ label, on, set }: { label: string; on: boolean; set: (on: boolean) => void }) {
   return (
     <button className="setting" aria-pressed={on} onClick={() => set(!on)}>
       {label}<span className={`switch ${on ? 'on' : ''}`} />
