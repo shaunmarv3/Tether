@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  chatTitle, IDLE_MS, isMoneyApp, messageDraft, namesMatch, PilotGate, riskOf, screenMark, STEP_LIMIT, type PilotAction, type PilotTask,
+  APP_LOCKER, chatTitle, IDLE_MS, isLockScreen, isMoneyApp, messageDraft, namesMatch, PilotGate, riskOf, screenMark, STEP_LIMIT, SYSTEM_PANELS,
+  type PilotAction, type PilotTask,
 } from '../src/pilot'
 import type { UiNode } from '../src/ui'
 
@@ -37,7 +38,7 @@ describe('riskOf', () => {
     expect(riskOf(node({ desc: 'Send' }))).toBe('send')
     expect(riskOf(node({ id: 'com.whatsapp:id/send' }))).toBe('send')
     expect(riskOf(node({ id: 'com.x:id/btn_send' }))).toBe('send')
-    for (const text of ['Delete', 'Install', 'Allow', 'Pay', 'Confirm']) expect(riskOf(node({ text })), text).toBe('other')
+    for (const text of ['Delete', 'Install', 'Allow', 'Confirm']) expect(riskOf(node({ text })), text).toBe('other')
     expect(riskOf(node({ text: 'Sender info' }))).toBeNull()
     expect(riskOf(node({ text: 'Settings' }))).toBeNull()
   })
@@ -71,6 +72,18 @@ describe('screenMark', () => {
     expect(screenMark(TAP_SEND, chat('Monica'))).not.toBe(same)
     expect(screenMark(TAP_SEND, [root, title('Mom'), input])).not.toBe(same) // send button gone
     expect(screenMark(TAP_SEND, null)).not.toBe(same)
+  })
+})
+
+describe('isLockScreen', () => {
+  it('lock text is a phrase, not a word', () => {
+    const t = (text: string) => [root, node({ text })]
+    expect(isLockScreen('com.android.systemui', [root], true)).toBe(true)
+    expect(isLockScreen(APP_LOCKER, null, false)).toBe(true)
+    expect(isLockScreen(WA, [root, node({ password: true, editable: true })], false)).toBe(true)
+    for (const text of ['Enter PIN', 'Draw your pattern', 'Use fingerprint', 'Enter your password']) expect(isLockScreen(WA, t(text), false), text).toBe(true)
+    for (const text of ['unlock the door', 'Locked chats', 'fingerprint']) expect(isLockScreen(WA, t(text), false), text).toBe(false)
+    expect(isLockScreen(WA, null, false)).toBe(false)
   })
 })
 
@@ -176,6 +189,79 @@ describe('PilotGate', () => {
     expect(started().check({ kind: 'key', key: 'enter' }, WA, null, 1)).toMatchObject({ v: 'ask', send: null })
     expect(started().check({ kind: 'swipe', x1: 1, y1: 2, x2: 3, y2: 4 }, WA, null, 1).v).toBe('allow')
     expect(started().check({ kind: 'read' }, WA, null, 1).v).toBe('allow')
+  })
+
+  it('money words win over send words', () => {
+    for (const text of ['Pay & send', 'Payments on WhatsApp', 'UPI', 'Buy now', 'Order', 'Pay']) expect(riskOf(node({ text })), text).toBe('money')
+    const pay = node({ text: 'Pay & send', clickable: true, bounds: [0, 1000, 500, 1100] })
+    expect(started().check({ kind: 'tap', x: 10, y: 1050 }, WA, [root, pay], 1)).toMatchObject({ v: 'block', stop: true })
+    expect(started().check({ kind: 'press', x: 10, y: 1050 }, WA, [root, pay], 1)).toMatchObject({ v: 'block', stop: true })
+  })
+
+  it('reactions', () => {
+    expect(riskOf(node({ desc: '❤️' }))).toBe('react')
+    expect(riskOf(node({ text: '😂' }))).toBe('react')
+    expect(riskOf(node({ id: 'com.x:id/reaction_view' }))).toBe('react')
+    expect(riskOf(node({ text: '1' }))).toBeNull()
+    expect(riskOf(node({ text: 'Hi 👋' }))).toBeNull()
+    const heart = node({ desc: '❤️', clickable: true, bounds: [300, 900, 400, 1000] })
+    const tap = { kind: 'tap', x: 350, y: 950 } as const
+    expect(started({ to: 'Mom' }).check(tap, WA, [...chat('Mom'), heart], 1))
+      .toEqual({ v: 'ask', why: 'REACT', send: { to: 'Mom', message: '❤️' } })
+    expect(started({ to: 'Mom' }).check(tap, WA, [...chat('Monica'), heart], 1)).toMatchObject({ v: 'block', stop: true })
+  })
+
+  it('long press is judged like a tap', () => {
+    expect(started().check({ kind: 'press', x: 990, y: 2260 }, WA, chat('Mom'), 1)).toMatchObject({ v: 'ask', why: 'SEND' })
+    expect(started().check({ kind: 'press', x: 300, y: 140 }, WA, chat('Mom'), 1).v).toBe('allow')
+    expect(started().check({ kind: 'press', x: 5, y: 5 }, WA, null, 1)).toMatchObject({ v: 'ask', why: 'LONG PRESS WITHOUT SCREEN TEXT' })
+  })
+
+  it('switch off only skips planned sends', () => {
+    const off = (t: Partial<PilotTask>) => {
+      const g = started(t)
+      g.askSends = false
+      return g
+    }
+    expect(off({ to: 'Mom' }).check(TAP_SEND, WA, chat('Mom'), 1)).toEqual({ v: 'allow', send: { to: 'Mom', message: 'on my way' } })
+    expect(off({ to: 'Mom' }).check(TAP_SEND, WA, chat('Monica'), 1)).toMatchObject({ v: 'block', stop: true })
+    expect(off({}).check(TAP_SEND, WA, chat('Mom'), 1)).toMatchObject({ v: 'ask', why: 'SEND' })
+    const del = node({ text: 'Delete', clickable: true, bounds: [0, 1000, 500, 1100] })
+    expect(off({ to: 'Mom' }).check({ kind: 'tap', x: 10, y: 1050 }, WA, [root, del], 1)).toMatchObject({ v: 'ask', why: 'DELETE' })
+  })
+
+  it('never types into a password field', () => {
+    const pw = node({ cls: 'android.widget.EditText', editable: true, focused: true, password: true, bounds: [0, 500, 1080, 600] })
+    expect(started().check({ kind: 'type', text: '1234' }, WA, [root, pw], 1)).toMatchObject({ v: 'block', stop: false })
+    const p = 'com.google.android.permissioncontroller'
+    expect(started().check({ kind: 'type', text: '1234' }, p, [root, pw], 1)).toMatchObject({ v: 'block', stop: false })
+    expect(started().check({ kind: 'type', text: 'hi' }, WA, chat('Mom'), 1).v).toBe('allow')
+  })
+
+  it('system panels', () => {
+    const ui = SYSTEM_PANELS
+    const tile = node({ pkg: ui, desc: 'Wi-Fi', clickable: true, bounds: [0, 200, 500, 400] })
+    const shade = [node({ pkg: ui, bounds: [0, 0, 1080, 2400] }), tile]
+    const g = () => started({ apps: [WA, ui] })
+    expect(g().check({ kind: 'read' }, ui, shade, 1).v).toBe('allow')
+    expect(g().check({ kind: 'wait' }, ui, shade, 1).v).toBe('allow')
+    expect(g().check({ kind: 'tap', x: 600, y: 1000 }, ui, shade, 1)).toMatchObject({ v: 'ask', why: 'SYSTEM PANEL' })
+    expect(g().check({ kind: 'type', text: 'x' }, ui, shade, 1)).toMatchObject({ v: 'ask', why: 'SYSTEM PANEL' })
+    expect(g().check({ kind: 'key', key: 'enter' }, ui, shade, 1)).toMatchObject({ v: 'ask', why: 'SYSTEM PANEL' })
+    expect(g().check({ kind: 'swipe', x1: 600, y1: 1000, x2: 600, y2: 300 }, ui, shade, 1).v).toBe('allow')
+    expect(g().check({ kind: 'swipe', x1: 100, y1: 300, x2: 100, y2: 310 }, ui, shade, 1)).toMatchObject({ v: 'ask', why: 'SYSTEM PANEL' })
+    const home = 'com.nothing.launcher'
+    const launcher = [node({ pkg: home, bounds: [0, 0, 1080, 2400] })]
+    expect(g().check({ kind: 'swipe', x1: 540, y1: 5, x2: 540, y2: 1500 }, home, launcher, 1).v).toBe('allow')
+    expect(g().check({ kind: 'tap', x: 540, y: 5 }, home, launcher, 1)).toMatchObject({ v: 'block', stop: false })
+    expect(started().check({ kind: 'swipe', x1: 540, y1: 5, x2: 540, y2: 1500 }, home, launcher, 1)).toMatchObject({ v: 'block' })
+    expect(started().check({ kind: 'read' }, ui, shade, 1)).toMatchObject({ v: 'block', stop: false })
+  })
+
+  it('wait is judged like read', () => {
+    expect(started().check({ kind: 'wait' }, WA, chat('Mom'), 1).v).toBe('allow')
+    expect(started().check({ kind: 'wait' }, 'com.phonepe.app', null, 1)).toMatchObject({ v: 'block', stop: true })
+    expect(started().check({ kind: 'wait' }, 'com.instagram.android', null, 1)).toMatchObject({ v: 'block', stop: false })
   })
 
   it('unknown foreground blocks', () => {

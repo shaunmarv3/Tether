@@ -4,16 +4,19 @@ import { nodeAt, screenPackage, type PhoneKey, type UiNode } from './ui'
 
 export interface PilotTask { goal: string; steps: string[]; apps: string[] /* packages */; to: string | null }
 export type PilotAction =
-  | { kind: 'read' } | { kind: 'shot' } | { kind: 'open'; pkg: string } | { kind: 'tap'; x: number; y: number }
+  | { kind: 'read' } | { kind: 'shot' } | { kind: 'wait' } | { kind: 'open'; pkg: string } | { kind: 'tap'; x: number; y: number }
+  | { kind: 'press'; x: number; y: number } // long press: judged like a tap
   | { kind: 'type'; text: string } | { kind: 'swipe'; x1: number; y1: number; x2: number; y2: number } | { kind: 'key'; key: PhoneKey }
 export interface SendInfo { to: string | null; message: string }
 export type Verdict =
-  | { v: 'allow' }
+  | { v: 'allow'; send?: SendInfo } // send: a send that skipped the popup (switch OFF), for the log
   | { v: 'ask'; why: string; send: SendInfo | null }
   | { v: 'block'; why: string; stop: boolean }
 
-export const STEP_LIMIT = 40
-export const IDLE_MS = 600_000
+export const STEP_LIMIT = 200
+export const IDLE_MS = 1_800_000
+export const SYSTEM_PANELS = 'com.android.systemui' // notification shade, quick settings, keyguard
+export const APP_LOCKER = 'com.nothing.applocker'
 
 // Banks, UPI, wallets, the Play Store (it charges), password managers, authenticators (rule 14): never opened, read or
 // captured. Plus any package with a bank / pay / upi / wallet part — a false hit only blocks an app, never the reverse.
@@ -29,22 +32,39 @@ export function isMoneyApp(pkg: string): boolean {
 
 const SYSTEM_DIALOGS = new Set(['com.google.android.permissioncontroller', 'com.android.permissioncontroller', 'android'])
 const SETTINGS = 'com.android.settings'
+const MONEY_WORDS = new Set(['pay', 'payment', 'payments', 'rupee', 'upi', 'wallet', 'transfer', 'buy', 'purchase', 'order', 'checkout',
+  'subscribe'])
 const SEND_WORDS = new Set(['send', 'post', 'share', 'publish', 'reply'])
-const OTHER_WORDS = new Set(['pay', 'buy', 'purchase', 'order', 'checkout', 'delete', 'remove', 'uninstall', 'install', 'allow',
-  'confirm', 'accept', 'transfer', 'subscribe'])
+const REACT_WORDS = new Set(['react', 'reaction', 'reactions'])
+const OTHER_WORDS = new Set(['delete', 'remove', 'uninstall', 'install', 'allow', 'confirm', 'accept'])
 const LABEL_MAX = 40 // longer text is content (a chat bubble), not a button label
 
 const words = (s: string) => s.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []
 const idWords = (id: string) => (id.split(':id/').pop() ?? '').split(/[_\W]+|(?<=[a-z])(?=[A-Z])/).map((w) => w.toLowerCase())
+const labels = (n: UiNode) => [n.text, n.desc].filter((s) => s && s.length <= LABEL_MAX)
+const isEmoji = (s: string) => /^[\p{Extended_Pictographic}\p{Emoji_Component}\s]+$/u.test(s) && /\p{Extended_Pictographic}/u.test(s)
 
-function riskWord(n: UiNode): string | null {
-  const all = [...(n.text.length <= LABEL_MAX ? words(n.text) : []), ...(n.desc.length <= LABEL_MAX ? words(n.desc) : []), ...idWords(n.id)]
-  return all.find((w) => SEND_WORDS.has(w)) ?? all.find((w) => OTHER_WORDS.has(w)) ?? null
+interface Risk { kind: 'money' | 'send' | 'react' | 'other'; word: string }
+function risk(n: UiNode): Risk | null {
+  const all = [...labels(n).flatMap(words), ...idWords(n.id)]
+  const emoji = labels(n).find(isEmoji)
+  for (const [kind, set] of [['money', MONEY_WORDS], ['send', SEND_WORDS], ['react', REACT_WORDS], ['other', OTHER_WORDS]] as const) {
+    const word = all.find((w) => set.has(w))
+    if (word) return { kind, word }
+    if (kind === 'send' && emoji) return { kind: 'react', word: emoji } // a reaction row / emoji picker
+  }
+  return null
 }
 
-export function riskOf(n: UiNode): 'send' | 'other' | null {
-  const w = riskWord(n)
-  return w === null ? null : SEND_WORDS.has(w) ? 'send' : 'other'
+export function riskOf(n: UiNode): Risk['kind'] | null {
+  return risk(n)?.kind ?? null
+}
+
+// Phone keyguard, Nothing App Lock, or an app's own lock / login screen. Phrases only: "Locked chats" or a message
+// saying "unlock" is not a lock screen.
+const LOCK_TEXT = /\b(?:enter|confirm) (?:your )?(?:pin|password|passcode)\b|\bdraw (?:your )?(?:unlock )?pattern\b|\b(?:use|touch) (?:your |the )?fingerprint\b|\bunlock with\b/i
+export function isLockScreen(fg: string | null, nodes: UiNode[] | null, keyguard: boolean): boolean {
+  return keyguard || fg === APP_LOCKER || !!nodes?.some((n) => n.password || labels(n).some((s) => LOCK_TEXT.test(s)))
 }
 
 // The chat's name: WhatsApp's title id, else the first plain text in the top 20 % of the screen (below the status bar).
@@ -68,17 +88,21 @@ export function namesMatch(planned: string, onScreen: string): boolean {
 }
 
 const block = (why: string, stop = false): Verdict => ({ v: 'block', why, stop })
+// The element under the finger. A swipe that starts on a button can click it (finger barely moves): judged like a tap there.
+const targetOf = (a: PilotAction, nodes: UiNode[]) =>
+  a.kind === 'tap' || a.kind === 'press' ? nodeAt(nodes, a.x, a.y) : a.kind === 'swipe' ? nodeAt(nodes, a.x1, a.y1) : null
 
 // What the user agreed to: same app, same chat, same thing under the finger. Compared again after a question, because the
 // screen can change while the user decides.
 export function screenMark(a: PilotAction, nodes: UiNode[] | null): string {
   if (!nodes) return ''
-  const at = a.kind === 'tap' ? nodeAt(nodes, a.x, a.y) : a.kind === 'swipe' ? nodeAt(nodes, a.x1, a.y1) : null
+  const at = targetOf(a, nodes)
   return JSON.stringify([screenPackage(nodes), chatTitle(nodes), at && [at.text, at.desc, at.id, at.bounds]])
 }
 
 export class PilotGate {
   task: PilotTask | null = null
+  askSends = true // the AI PILOT page switch; OFF skips the popup only for sends to the plan's `to`
   private steps = 0
   private last = 0
 
@@ -94,7 +118,7 @@ export class PilotGate {
 
   check(a: PilotAction, fg: string | null, nodes: UiNode[] | null, now: number): Verdict {
     if (!this.task) return block('NO APPROVED TASK. CALL start_task FIRST.')
-    if (now - this.last > IDLE_MS) return block('TASK TIMED OUT (10 MIN IDLE)', true)
+    if (now - this.last > IDLE_MS) return block('TASK TIMED OUT (30 MIN IDLE)', true)
     if (this.steps >= STEP_LIMIT) return block(`STEP LIMIT (${STEP_LIMIT}) REACHED`, true)
     const v = this.judge(this.task, a, fg, nodes)
     if (v.v !== 'block') {
@@ -110,23 +134,33 @@ export class PilotGate {
       if (isMoneyApp(a.pkg)) return block('MONEY APPS ARE BLOCKED', true)
       return task.apps.includes(a.pkg) ? { v: 'allow' } : block(`${a.pkg} IS NOT IN THE PLAN`)
     }
+    if (a.kind === 'type' && nodes?.some((n) => n.password && n.focused)) return block('NEVER TYPES INTO A PASSWORD FIELD')
     if (!fg) return block("CAN'T TELL WHICH APP IS OPEN")
     if (isMoneyApp(fg)) return block('A MONEY APP IS OPEN: TASK STOPPED', true)
-    if (SYSTEM_DIALOGS.has(fg)) return a.kind === 'read' || a.kind === 'shot' ? { v: 'allow' } : { v: 'ask', why: 'SYSTEM DIALOG', send: null }
-    if (!task.apps.includes(fg)) return block(`${fg} IS NOT IN THE PLAN`)
-    if (a.kind === 'read' || a.kind === 'shot') return { v: 'allow' }
+    const looks = a.kind === 'read' || a.kind === 'shot' || a.kind === 'wait'
+    if (SYSTEM_DIALOGS.has(fg)) return looks ? { v: 'allow' } : { v: 'ask', why: 'SYSTEM DIALOG', send: null }
+    const target = nodes && targetOf(a, nodes)
+    // With System panels in the plan, the shade can be pulled down from any screen (not from a button on it).
+    const shadePull = a.kind === 'swipe' && task.apps.includes(SYSTEM_PANELS) && !target?.clickable
+    if (!task.apps.includes(fg) && !shadePull) return block(`${fg} IS NOT IN THE PLAN`)
+    if (looks) return { v: 'allow' }
+    const panel = fg === SYSTEM_PANELS
     if (fg === SETTINGS && a.kind !== 'swipe') return { v: 'ask', why: 'SETTINGS', send: null }
-    if (a.kind === 'type') return { v: 'allow' }
+    if (a.kind === 'type') return panel ? { v: 'ask', why: 'SYSTEM PANEL', send: null } : { v: 'allow' }
     // No UI tree (a game, or uiautomator busy): a tap or Enter can't be classified, so it asks; scrolling can't send.
-    if (!nodes) return a.kind === 'swipe' ? { v: 'allow' } : { v: 'ask', why: `${a.kind === 'tap' ? 'TAP' : 'PRESS ENTER'} WITHOUT SCREEN TEXT`, send: null }
-    // A swipe that starts on a button can click it (finger barely moves): judged like a tap there.
-    const target = a.kind === 'tap' ? nodeAt(nodes, a.x, a.y) : a.kind === 'swipe' ? nodeAt(nodes, a.x1, a.y1) : null
-    const word = a.kind === 'key' ? (nodes.some((n) => n.editable && n.focused) ? 'send' : null) : target && riskWord(target)
-    if (!word) return { v: 'allow' }
-    if (!SEND_WORDS.has(word)) return { v: 'ask', why: word.toUpperCase(), send: null }
+    const what = a.kind === 'tap' ? 'TAP' : a.kind === 'press' ? 'LONG PRESS' : 'PRESS ENTER'
+    if (!nodes) return a.kind === 'swipe' ? { v: 'allow' } : { v: 'ask', why: `${what} WITHOUT SCREEN TEXT`, send: null }
+    const r: Risk | null = a.kind === 'key' ? (nodes.some((n) => n.editable && n.focused) ? { kind: 'send', word: 'send' } : null)
+      : target && risk(target)
+    if (r?.kind === 'money') return block(`PAYMENT BUTTON ("${r.word.toUpperCase()}"): TASK STOPPED`, true)
+    if (panel && (a.kind !== 'swipe' || target?.clickable)) return { v: 'ask', why: 'SYSTEM PANEL', send: null }
+    if (!r) return { v: 'allow' }
+    if (r.kind === 'other') return { v: 'ask', why: r.word.toUpperCase(), send: null }
     const to = chatTitle(nodes)
     if (task.to && !to) return block("CAN'T READ WHO THIS GOES TO: TASK STOPPED", true)
     if (task.to && to && !namesMatch(task.to, to)) return block(`WRONG CHAT: "${to}" IS NOT "${task.to}". TASK STOPPED`, true)
-    return { v: 'ask', why: 'SEND', send: { to, message: messageDraft(nodes) } }
+    const send = { to, message: r.kind === 'react' ? r.word : messageDraft(nodes) }
+    if (!this.askSends && task.to) return { v: 'allow', send }
+    return { v: 'ask', why: r.kind === 'react' ? 'REACT' : 'SEND', send }
   }
 }
