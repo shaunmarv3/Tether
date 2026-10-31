@@ -24,6 +24,7 @@ const INSTRUCTIONS = "TETHER lets you use the user's Android phone. Always call 
   + 'guessing), call ask_user before you reply and use only what the user tells you; never make it up. '
   + 'Know when to stop: end the chat with end_task and a short summary when the conversation is naturally over (bye, good '
   + 'night, ttyl), the goal is done, the other person wants to stop, or nothing has come back for about 10 minutes. '
+  + 'Some popups (like a reaction row) are not in read_screen: it lists them, and a screenshot shows them. '
   + 'Reacting to a message: long_press it, then tap the emoji that really fits its meaning and tone, not 👍 by default '
   + '(funny 😂 🤣 💀, love or thanks ❤️ 🥰 🙏, agree 👍 💯, wow 😮 🤯, sad 😢 🥺, celebrate 🎉 🔥, and any other emoji that '
   + 'fits better). If the right one is not in the quick row, open the full emoji picker (the + button) and search it by name. '

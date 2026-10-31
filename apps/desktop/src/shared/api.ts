@@ -50,6 +50,7 @@ export interface PilotQuestion {
   id: number; kind: 'plan' | 'send' | 'risky' | 'unlock' | 'question'; app: string; why: string // why SEND / REACT for a send
   to: string | null; message: string | null // send (REACT: the emoji); question: Claude's question to the user
   task: { goal: string; steps: string[]; apps: string[]; to: string | null } | null // plan
+  shot?: { data: string /* jpeg base64 */; x: number; y: number /* 0–1 */ } | null // POPUP: the screen + where it taps
 }
 export interface PilotView {
   connected: boolean | null; command: string; current: PilotTaskView | null; past: PilotTaskView[]; question: PilotQuestion | null

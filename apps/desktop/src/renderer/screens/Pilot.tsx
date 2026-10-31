@@ -26,7 +26,7 @@ export function PilotAsk({ q }: { q: PilotQuestion }) {
   const title = q.kind === 'plan' ? 'AI WANTS TO START A TASK' : q.kind === 'question' ? 'AI ASKS YOU' : q.kind === 'unlock' ? `${q.app.toUpperCase()} IS LOCKED`
     : react ? 'AI WANTS TO REACT' : q.kind === 'send' ? 'AI WANTS TO SEND'
     : q.why === 'SETTINGS' ? 'AI WANTS TO CHANGE SETTINGS' : q.why === 'SYSTEM DIALOG' ? 'AI WANTS TO ANSWER A SYSTEM POPUP'
-    : q.why === 'SYSTEM PANEL' ? 'AI WANTS TO TAP IN SYSTEM PANELS'
+    : q.why === 'SYSTEM PANEL' ? 'AI WANTS TO TAP IN SYSTEM PANELS' : q.why === 'POPUP' ? 'AI WANTS TO TAP IN A POPUP'
     : q.why.includes('WITHOUT SCREEN TEXT') ? `AI WANTS TO ${q.why}` : `AI WANTS TO TAP ${q.why}`
   const [no, yes] = q.kind === 'plan' ? ['DENY', 'ALLOW'] : q.kind === 'unlock' ? ['STOP', 'DONE'] : q.kind === 'question' ? ['SKIP', 'ANSWER']
     : react ? ["DON'T REACT", 'REACT'] : q.kind === 'send' ? ["DON'T SEND", 'SEND'] : ['NO', 'YES']
@@ -64,6 +64,13 @@ export function PilotAsk({ q }: { q: PilotQuestion }) {
           </dl>
         )}
         {q.kind === 'risky' && <dl className="specs"><dt>APP</dt><dd>{q.app}</dd></dl>}
+        {q.why === 'POPUP' && <p className="card-note">TETHER can't read this popup (like WhatsApp's reaction row). Check the ring: that's exactly where it taps.</p>}
+        {q.shot && (
+          <div className="pilot-shot">
+            <img src={`data:image/jpeg;base64,${q.shot.data}`} alt="Phone screen, ring marks the tap" />
+            <span className="pilot-ring" style={{ left: `${q.shot.x * 100}%`, top: `${q.shot.y * 100}%` }} />
+          </div>
+        )}
         {q.kind === 'question' && (
           <div className="col">
             <p className="pilot-msg">{q.message}</p>

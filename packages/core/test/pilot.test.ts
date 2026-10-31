@@ -230,6 +230,21 @@ describe('PilotGate', () => {
     expect(off({ to: 'Mom' }).check({ kind: 'tap', x: 10, y: 1050 }, WA, [root, del], 1)).toMatchObject({ v: 'ask', why: 'DELETE' })
   })
 
+  it('a tap in a popup the dump misses always asks (WhatsApp reaction row)', () => {
+    const row = [{ pkg: WA, bounds: [0, 1974, 1080, 2181] as [number, number, number, number] }]
+    const heart = { kind: 'tap', x: 288, y: 2078 } as const
+    expect(started({ to: 'Mom' }).check(heart, WA, chat('Mom'), 1, row)).toEqual({ v: 'ask', why: 'POPUP', send: null })
+    expect(started({ to: 'Mom' }).check(heart, WA, chat('Monica'), 1, row)).toMatchObject({ v: 'block', stop: true })
+    const off = started({ to: 'Mom' })
+    off.askSends = false
+    expect(off.check(heart, WA, chat('Mom'), 1, row)).toMatchObject({ v: 'ask', why: 'POPUP' }) // switch OFF doesn't cover it
+    expect(started().check({ kind: 'press', x: 288, y: 2078 }, WA, null, 1, row)).toMatchObject({ v: 'ask', why: 'POPUP' })
+    expect(started().check({ kind: 'tap', x: 288, y: 1500 }, WA, chat('Mom'), 1, row).v).toBe('allow') // outside it
+    const pay = [{ pkg: 'com.phonepe.app', bounds: row[0].bounds }]
+    expect(started().check(heart, WA, chat('Mom'), 1, pay)).toMatchObject({ v: 'block', stop: true })
+    expect(screenMark(heart, chat('Mom'), row)).not.toBe(screenMark(heart, chat('Mom'), []))
+  })
+
   it('never types into a password field', () => {
     const pw = node({ cls: 'android.widget.EditText', editable: true, focused: true, password: true, bounds: [0, 500, 1080, 600] })
     expect(started().check({ kind: 'type', text: '1234' }, WA, [root, pw], 1)).toMatchObject({ v: 'block', stop: false })

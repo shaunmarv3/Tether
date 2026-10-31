@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatScreen, nodeAt, parseFocus, parseKeyguard, parseUiDump, screenPackage, type UiNode } from '../src/ui'
+import { formatScreen, nodeAt, parseFocus, parseKeyguard, parsePopups, parseUiDump, screenPackage, type UiNode } from '../src/ui'
 
 // Synthetic dump (shape of `uiautomator dump`), never a real one.
 const node = (attrs: string) => `<node index="0" ${attrs} checkable="false" checked="false" enabled="true" focusable="true" scrollable="false" long-clickable="false" selected="false">`
@@ -74,6 +74,26 @@ describe('parseKeyguard', () => {
     expect(parseKeyguard('  KeyguardServiceDelegate\n    showing=true\n    showingAndNotOccluded=true\n')).toBe(true)
     expect(parseKeyguard('  KeyguardServiceDelegate\n    showing=false\n')).toBe(false)
     expect(parseKeyguard('nothing here')).toBe(false)
+  })
+})
+
+describe('parsePopups', () => {
+  // Shape of a visible WhatsApp reaction row in `dumpsys window` (Android 16, 2026-11-01), trimmed.
+  const block = (name: string, visible: boolean) => `  Window #9 Window{cdfc745 u0 ${name}}:
+    mOwnerUid=10225 showForAllUsers=false package=com.whatsapp appop=NONE
+    mAttrs={(0,1974)(1080xwrap) gr=TOP START CENTER ty=APPLICATION_PANEL fmt=TRANSPARENT
+      fl=NOT_FOCUSABLE NOT_TOUCH_MODAL}
+    Requested w=1080 h=207 mLayoutSeq=263078
+    mHasSurface=true isReadyForDisplay()=true mWindowRemovalAllowed=false
+    isVisible=${visible}
+  Window #10 Window{333664e u0 InputMethod}:
+    mOwnerUid=10100 package=com.nothing.ime
+`
+  it('finds visible popup windows the screen dump misses', () => {
+    expect(parsePopups(block('PopupWindow:ae99f7b', true))).toEqual([{ pkg: 'com.whatsapp', bounds: [0, 1974, 1080, 2181] }])
+    expect(parsePopups(block('PopupWindow:ae99f7b', false))).toEqual([])
+    expect(parsePopups(block('com.whatsapp/com.whatsapp.Conversation', true))).toEqual([])
+    expect(parsePopups('nothing here')).toEqual([])
   })
 })
 

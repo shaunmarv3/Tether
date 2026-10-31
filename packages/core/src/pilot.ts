@@ -1,6 +1,6 @@
 // The AI pilot's guard (rule 12): every phone action Claude asks for gets a verdict here — allow, ask the user, or
 // block. Pure, so the AI can't talk its way past it and every rule has a test.
-import { nodeAt, screenPackage, type PhoneKey, type UiNode } from './ui'
+import { nodeAt, screenPackage, type PhoneKey, type Popup, type UiNode } from './ui'
 
 export interface PilotTask { goal: string; steps: string[]; apps: string[] /* packages */; to: string | null }
 export type PilotAction =
@@ -88,16 +88,23 @@ export function namesMatch(planned: string, onScreen: string): boolean {
 }
 
 const block = (why: string, stop = false): Verdict => ({ v: 'block', why, stop })
+const wrongChat = (planned: string, onScreen: string | null): Verdict | null =>
+  !onScreen ? block("CAN'T READ WHO THIS GOES TO: TASK STOPPED", true)
+  : !namesMatch(planned, onScreen) ? block(`WRONG CHAT: "${onScreen}" IS NOT "${planned}". TASK STOPPED`, true) : null
 // The element under the finger. A swipe that starts on a button can click it (finger barely moves): judged like a tap there.
 const targetOf = (a: PilotAction, nodes: UiNode[]) =>
   a.kind === 'tap' || a.kind === 'press' ? nodeAt(nodes, a.x, a.y) : a.kind === 'swipe' ? nodeAt(nodes, a.x1, a.y1) : null
+const popupAt = (a: PilotAction, popups: Popup[]) => {
+  const p = a.kind === 'tap' || a.kind === 'press' ? [a.x, a.y] : a.kind === 'swipe' ? [a.x1, a.y1] : null
+  return p && popups.find(({ bounds: [l, t, r, b] }) => p[0] >= l && p[0] < r && p[1] >= t && p[1] < b)
+}
 
 // What the user agreed to: same app, same chat, same thing under the finger. Compared again after a question, because the
 // screen can change while the user decides.
-export function screenMark(a: PilotAction, nodes: UiNode[] | null): string {
+export function screenMark(a: PilotAction, nodes: UiNode[] | null, popups: Popup[] = []): string {
   if (!nodes) return ''
   const at = targetOf(a, nodes)
-  return JSON.stringify([screenPackage(nodes), chatTitle(nodes), at && [at.text, at.desc, at.id, at.bounds]])
+  return JSON.stringify([screenPackage(nodes), chatTitle(nodes), at && [at.text, at.desc, at.id, at.bounds], popupAt(a, popups) ?? null])
 }
 
 export class PilotGate {
@@ -116,12 +123,13 @@ export class PilotGate {
     this.task = null
   }
 
-  check(a: PilotAction, fg: string | null, nodes: UiNode[] | null, now: number): Verdict {
+  // popups: windows `uiautomator dump` misses (ui.ts parsePopups).
+  check(a: PilotAction, fg: string | null, nodes: UiNode[] | null, now: number, popups: Popup[] = []): Verdict {
     if (!this.task) return block('NO APPROVED TASK. CALL start_task FIRST.')
     if (now - this.last > IDLE_MS) return block('TASK TIMED OUT (10 MIN IDLE)', true)
     // A chat task (plan with a `to`) has no step limit (user, 2026-11-01): every send still asks, STOP and idle still end it.
     if (!this.task.to && this.steps >= STEP_LIMIT) return block(`STEP LIMIT (${STEP_LIMIT}) REACHED`, true)
-    const v = this.judge(this.task, a, fg, nodes)
+    const v = this.judge(this.task, a, fg, nodes, popups)
     if (v.v !== 'block') {
       this.steps++
       this.last = now
@@ -129,7 +137,7 @@ export class PilotGate {
     return v
   }
 
-  private judge(task: PilotTask, a: PilotAction, fg: string | null, nodes: UiNode[] | null): Verdict {
+  private judge(task: PilotTask, a: PilotAction, fg: string | null, nodes: UiNode[] | null, popups: Popup[]): Verdict {
     if (a.kind === 'key' && a.key !== 'enter') return { v: 'allow' } // back / home only ever leave
     if (a.kind === 'open') {
       if (isMoneyApp(a.pkg)) return block('MONEY APPS ARE BLOCKED', true)
@@ -148,6 +156,12 @@ export class PilotGate {
     const panel = fg === SYSTEM_PANELS
     if (fg === SETTINGS && a.kind !== 'swipe') return { v: 'ask', why: 'SETTINGS', send: null }
     if (a.kind === 'type') return panel ? { v: 'ask', why: 'SYSTEM PANEL', send: null } : { v: 'allow' }
+    // A popup TETHER can't read (a reaction row, a menu): always asks, even with the send switch OFF; wrong chat still stops.
+    const popup = popupAt(a, popups)
+    if (popup) {
+      if (isMoneyApp(popup.pkg)) return block('A MONEY APP IS OPEN: TASK STOPPED', true)
+      return (task.to && wrongChat(task.to, nodes && chatTitle(nodes))) || { v: 'ask', why: 'POPUP', send: null }
+    }
     // No UI tree (a game, or uiautomator busy): a tap or Enter can't be classified, so it asks; scrolling can't send.
     const what = a.kind === 'tap' ? 'TAP' : a.kind === 'press' ? 'LONG PRESS' : 'PRESS ENTER'
     if (!nodes) return a.kind === 'swipe' ? { v: 'allow' } : { v: 'ask', why: `${what} WITHOUT SCREEN TEXT`, send: null }
@@ -158,8 +172,8 @@ export class PilotGate {
     if (!r) return { v: 'allow' }
     if (r.kind === 'other') return { v: 'ask', why: r.word.toUpperCase(), send: null }
     const to = chatTitle(nodes)
-    if (task.to && !to) return block("CAN'T READ WHO THIS GOES TO: TASK STOPPED", true)
-    if (task.to && to && !namesMatch(task.to, to)) return block(`WRONG CHAT: "${to}" IS NOT "${task.to}". TASK STOPPED`, true)
+    const wrong = task.to && wrongChat(task.to, to)
+    if (wrong) return wrong
     const send = { to, message: r.kind === 'react' ? r.word : messageDraft(nodes) }
     if (!this.askSends && task.to) return { v: 'allow', send }
     return { v: 'ask', why: r.kind === 'react' ? 'REACT' : 'SEND', send }

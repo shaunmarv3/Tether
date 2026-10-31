@@ -87,9 +87,23 @@ export function parseKeyguard(dumpsysWindow: string): boolean {
   return /KeyguardServiceDelegate\s+showing=true/.test(dumpsysWindow)
 }
 
-export async function windowState(adb: string, serial: string): Promise<{ focus: string | null; keyguard: boolean }> {
+// Visible PopupWindows (WhatsApp's reaction row, overflow menus): not focusable, so `uiautomator dump` never shows them.
+// Bounds = the window's (x,y) from mAttrs + its requested size.
+export interface Popup { pkg: string; bounds: [number, number, number, number] }
+export function parsePopups(dumpsysWindow: string): Popup[] {
+  return dumpsysWindow.split(/\n(?=\s*Window #\d+ )/).flatMap((w) => {
+    const pos = /mAttrs=\{\((-?\d+),(-?\d+)\)/.exec(w)
+    const size = /Requested w=(\d+) h=(\d+)/.exec(w)
+    const pkg = /\spackage=([\w.]+)/.exec(w)
+    if (!/^\s*Window #\d+ Window\{\S+ \S+ PopupWindow:/.test(w) || !/isVisible=true/.test(w) || !pos || !size || !pkg) return []
+    const [x, y, wd, ht] = [pos[1], pos[2], size[1], size[2]].map(Number)
+    return [{ pkg: pkg[1], bounds: [x, y, x + wd, y + ht] as Popup['bounds'] }]
+  })
+}
+
+export async function windowState(adb: string, serial: string): Promise<{ focus: string | null; keyguard: boolean; popups: Popup[] }> {
   const out = await shell(adb, serial, ['dumpsys', 'window'], 'dumpsys window')
-  return { focus: parseFocus(out), keyguard: parseKeyguard(out) }
+  return { focus: parseFocus(out), keyguard: parseKeyguard(out), popups: parsePopups(out) }
 }
 
 export async function tapAt(adb: string, serial: string, x: number, y: number): Promise<void> {
