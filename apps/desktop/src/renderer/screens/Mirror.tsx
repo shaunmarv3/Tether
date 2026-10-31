@@ -21,6 +21,7 @@ export function Mirror({ state, recordAsked, clearRecordAsk }: { state: AppState
   const page = useRef<HTMLElement>(null)
   const now = useNow()
   const ready = state.device?.state === 'device'
+  const ai = state.pilot.current?.status === 'running' ? state.pilot.current : null
 
   function start() {
     const canvas = page.current?.querySelector('canvas')
@@ -57,7 +58,7 @@ export function Mirror({ state, recordAsked, clearRecordAsk }: { state: AppState
   useEffect(() => () => { recorder.current?.stop() }, []) // leaving the page saves what was recorded
 
   return (
-    <main className="main mirror-page" ref={page}>
+    <main className={`main mirror-page ${ai ? 'driving' : ''}`} ref={page}>
       <header className="row between wrap end">
         <div className="col">
           <span className="mono tiny muted">{info ? `LIVE · ${info.width}×${info.height} · ${info.fps} FPS` : 'PHONE SCREEN'}</span>
@@ -82,6 +83,15 @@ export function Mirror({ state, recordAsked, clearRecordAsk }: { state: AppState
           </div>
         )}
       </header>
+      {ai && (
+        <div className="pilot-strip" role="status">
+          <span className="led amber blink" />
+          <span className="mono small amber-text">AI</span>
+          <span className="grow pilot-step">{ai.log[0]?.text ?? ai.goal}</span>
+          <span className="mono tiny muted">STEP {ai.log.filter((s) => s.verdict !== 'blocked').length} / 40</span>
+          <button className="small-key pilot-strip-stop" onClick={() => void tether.pilotStop()}>STOP</button>
+        </div>
+      )}
       {ready
         ? <PhoneView view="mirror" keys onInfo={setInfo} />
         : <section className="lcd status"><div className="lcd-title">NO PHONE · PLUG IN A USB CABLE</div></section>}

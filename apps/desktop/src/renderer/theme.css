@@ -592,3 +592,36 @@ video.preview-media { width: 100%; height: 100%; }
 .notif-full {
   margin: 0; max-height: 52vh; overflow-y: auto; font-size: 14.5px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere;
 }
+
+/* AI pilot (Phase 3): question faceplate over every page, the AI PILOT page, the strip on Mirror */
+.pilot-ask-back {
+  position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 24px;
+  background: rgba(8, 7, 6, 0.78); animation: fade 200ms ease both;
+}
+.plate.pilot-ask { max-width: 520px; border-color: #4a3a12; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 0 0 1px rgba(255, 176, 0, 0.12), 0 40px 80px rgba(0, 0, 0, 0.6); }
+.pilot-ask .card-head { margin: 0; color: var(--amber); font-size: 15px; }
+.pilot-ask .specs dd { overflow-wrap: anywhere; }
+.pilot-msg { max-height: 30vh; overflow-y: auto; white-space: pre-wrap; padding: 10px 12px; border-radius: 10px; background: #0a0908; border: 1px solid #2e2c28; }
+.pilot-from { white-space: nowrap; }
+.pilot-plan { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; line-height: 1.45; }
+.pilot-task { padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; border-bottom: 1px solid #22201d; }
+.pilot-goal { flex: 1 1 260px; min-width: 0; }
+.pilot-goal .card-title { overflow-wrap: anywhere; }
+.key.danger.pilot-stop { min-height: 44px; padding: 0 18px; background: #2a1714; border-color: #6a2e26; color: #ffb3aa; }
+.lcd.pilot-lcd { padding: 10px 14px; border-width: 4px; border-radius: 12px; }
+.pilot-task .card-head { margin: 4px 0 0; }
+.pilot-log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; max-height: 340px; overflow-y: auto; }
+.pilot-log li { gap: 12px; }
+.pilot-step { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+.pilot-past-head { border-top: 1px solid var(--border); }
+.pilot-cmd {
+  display: block; padding: 10px 12px; border-radius: 10px; background: #0a0908; border: 1px solid #2e2c28;
+  font-size: 10.5px; line-height: 1.6; color: var(--amber); overflow-wrap: anywhere; user-select: all;
+}
+.pilot-rules { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; }
+.pilot-strip {
+  display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 16px; border-radius: 12px;
+  background: #1d1a12; border: 1px solid #4a3a12; animation: fade 200ms ease both;
+}
+.small-key.pilot-strip-stop { background: #2a1714; border-color: #6a2e26; color: #ffb3aa; }
+.mirror-page.driving .bezel { border-color: #5a4512; box-shadow: inset 0 0 28px rgba(255, 176, 0, 0.08), 0 0 0 1px rgba(255, 176, 0, 0.25); }

@@ -11,6 +11,7 @@ import { Layouts } from './screens/Layouts'
 import { Lock } from './screens/Lock'
 import { Mirror } from './screens/Mirror'
 import { Notifications } from './screens/Notifications'
+import { Pilot, PilotAsk } from './screens/Pilot'
 import { Security } from './screens/Security'
 import { Sidebar, type Page } from './Sidebar'
 import { tether } from './tether'
@@ -103,6 +104,7 @@ export function App() {
       {page === 'files' && <Files state={state} dir={filesDir} setDir={(d) => setFilesDir(d.endsWith('/') ? d : `${d}/`)} />}
       {page === 'clipboard' && <Clipboard state={state} />}
       {page === 'notifications' && <Notifications state={state} />}
+      {page === 'pilot' && <Pilot state={state} />}
       {page === 'layouts' && <Layouts state={state} />}
       {page === 'security' && <Security state={state} />}
 
@@ -132,6 +134,7 @@ export function App() {
           {toast.text!.endsWith('OPEN FOLDER') && <button className="small-key" onClick={() => void tether.openSaveFolder()}>OPEN FOLDER</button>}
         </div>
       )}
+      {state.pilot.question && <PilotAsk q={state.pilot.question} />}
     </div>
   )
 }
