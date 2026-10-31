@@ -19,6 +19,19 @@ async function writePc(text: string, offHistory: boolean): Promise<void> {
   })])
 }
 
+// A phone screenshot as an image, kept out of Win+V history / cloud clipboard the same way when asked.
+export async function writePcImage(png: Uint8Array<ArrayBuffer>, offHistory: boolean): Promise<void> {
+  const zero = () => new Blob([new Uint8Array(4)])
+  await clipboard.write([new ClipboardItem({
+    'image/png': new Blob([png], { type: 'image/png' }),
+    ...(offHistory ? {
+      [raw('ExcludeClipboardContentFromMonitorProcessing')]: new Blob([]),
+      [raw('CanIncludeInClipboardHistory')]: zero(),
+      [raw('CanUploadToCloudClipboard')]: zero(),
+    } : {}),
+  })])
+}
+
 const readPc = () => clipboard.readText().catch(() => '')
 
 export interface ClipDeps {

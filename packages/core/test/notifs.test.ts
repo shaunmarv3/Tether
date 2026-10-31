@@ -3,14 +3,18 @@ import { shq } from '../src/files'
 import { clearNotification, isNotificationKey, parseNotifications } from '../src/notifs'
 
 // Synthetic `dumpsys notification --noredact` in the shape seen on the phone (spec §3). Never paste a real dump here.
-interface Rec { pkg: string; key: string; flags?: string; when: number; title?: string; text?: string; msgs?: [string, string][] }
+interface Rec { pkg: string; key: string; flags?: string; when: number; title?: string; text?: string; msgs?: [string, string][]; image?: boolean; other?: boolean }
 function record(r: Rec): string {
   const extras = [
     r.title !== undefined ? `              android.title=String (${r.title})` : '              android.title=null',
+    ...(r.other ? ['              androidx.core.app.extra.COMPAT_TEMPLATE=String (androidx.core.app.NotificationCompat$MessagingStyle)'] : []),
     '              android.subText=null',
     r.text !== undefined ? `              android.text=String (${r.text})` : '              android.text=null',
     ...(r.msgs ? [`              android.messages=Bundle[] (${r.msgs.length})`,
-      ...r.msgs.map(([s, t], i) => `                [${i}] Bundle[{extras=Bundle[{}], sender_person=android.app.Person@1, sender=${s}, text=${t}, time=${i + 1}}]`)] : []),
+      ...r.msgs.map(([s, t], i) => r.image
+        ? `                [${i}] Bundle[{extras=Bundle[{}], sender=${s}, uri=content://com.whatsapp.provider/media/${i}, text=${t}, time=${i + 1}, type=image/jpeg}]`
+        : `                [${i}] Bundle[{extras=Bundle[{}], sender_person=android.app.Person@1, sender=${s}, text=${t}, time=${i + 1}}]`),
+      ...(r.other ? ['              gcm.n.dnp=Boolean (true)'] : [])] : []),
     '              android.infoText=null',
   ]
   return [
@@ -94,6 +98,20 @@ describe('parseNotifications', () => {
     const [n] = parseNotifications(dump([{ ...promo, text: 'x'.repeat(512) }]))
     expect(n.fullText).toBe(`${'x'.repeat(512)} …`)
     expect(parseNotifications(dump([{ ...promo, text: 'x'.repeat(511) }]))[0].fullText).toBe('x'.repeat(511))
+  })
+
+  it('keeps app-specific extras out of the text', () => {
+    const [n] = parseNotifications(dump([{ ...msg, other: true }]))
+    expect(n.title).toBe('Ann')
+    expect(n.fullText).not.toContain('androidx')
+    expect(n.fullText).not.toContain('gcm.n')
+    expect(n.fullText).toContain('Bob: see you')
+  })
+
+  it('cleans photo messages', () => {
+    const [n] = parseNotifications(dump([{ ...msg, image: true, msgs: [['Ann', '📷 Photo']] }]))
+    expect(n.fullText).toContain('Ann: 📷 Photo')
+    expect(n.fullText).not.toMatch(/uri=|type=|time=/)
   })
 
   it('uses the creation time when `when` is 0', () => {

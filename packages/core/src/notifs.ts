@@ -17,7 +17,6 @@ export interface PhoneNotification {
 export const SNOOZE_MS = 2_592_000_000 // 30 days; on the CMF Phone 1 an expired snooze did not come back anyway
 
 const RECORD = /^ {4}NotificationRecord\(/
-const KEY_LINE = /^ {14,}android\.[\w.]+=/
 const NOT_CLEARABLE = /\b(ONGOING_EVENT|NO_CLEAR|FOREGROUND_SERVICE)\b/
 
 export function isNotificationKey(k: unknown): k is string {
@@ -32,15 +31,19 @@ function str(raw: string | undefined): string {
   return !m ? '' : m[1].length === DUMP_CUT ? `${m[1]} …` : m[1]
 }
 
-// `Bundle[] (n)` + one `[i] Bundle[{… sender=S, text=T, time=N}]` per message (T may hold anything, line breaks too).
+// `Bundle[] (n)` + one `[i] Bundle[{… sender=S, (uri=U, )text=T, time=N(, type=M)}]` per message. T may hold anything,
+// line breaks too, so only plain trailing fields (time, MIME type, uri) are cut off the end.
+const TAIL = /, (?:time=\d+|type=[\w.+-]+\/[\w.+-]+|uri=\S+)$/
 function messages(raw: string | undefined): string[] {
   if (!raw) return []
   return raw.split(/\n\s+\[\d+\] Bundle\[\{/).slice(1).map((part) => {
-    const s = part.indexOf('sender=')
-    const t = part.indexOf(', text=')
-    const end = /, time=\d+\}\]\s*$/.exec(part)?.index ?? part.replace(/\}\]\s*$/, '').length
-    const text = t < 0 ? '' : part.slice(t + 7, end)
-    const sender = s < 0 || t < s ? '' : part.slice(s + 7, t)
+    let body = part.replace(/\}\]\s*$/, '')
+    for (let m = TAIL.exec(body); m; m = TAIL.exec(body)) body = body.slice(0, m.index)
+    const s = body.indexOf('sender=')
+    const t = body.indexOf(', text=')
+    const uri = body.indexOf(', uri=', s)
+    const text = t < 0 ? '' : body.slice(t + 7)
+    const sender = s < 0 || t < s ? '' : body.slice(s + 7, uri > s && uri < t ? uri : t)
     return sender ? `${sender}: ${text}` : text
   }).filter(Boolean)
 }
@@ -55,13 +58,16 @@ function extras(rec: string[]): Map<string, string> {
   const start = rec.findIndex((l) => /^\s+extras=\{$/.test(l))
   if (start < 0) return out
   const close = `${rec[start].slice(0, rec[start].indexOf('extras'))}}`
+  const body = rec.slice(start + 1)
+  // Every key sits at the first key's indent, whatever its name (android.*, androidx.*, gcm.*, app keys).
+  const key = new RegExp(`^ {${/^ */.exec(body[0] ?? '')![0].length}}([^\\s=]+)=`)
   let name: string | null = null
-  for (const l of rec.slice(start + 1)) {
+  for (const l of body) {
     if (l === close) break
-    if (KEY_LINE.test(l)) {
-      const t = l.trimStart()
-      name = t.slice(0, t.indexOf('='))
-      out.set(name, t.slice(name.length + 1))
+    const m = key.exec(l)
+    if (m) {
+      name = m[1]
+      out.set(name, l.slice(m[0].length))
     } else if (name) out.set(name, `${out.get(name)}\n${l}`)
   }
   return out

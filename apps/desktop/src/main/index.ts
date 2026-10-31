@@ -1,5 +1,5 @@
 import {
-  app, BrowserWindow, clipboard, ClipboardItem, dialog, globalShortcut, Menu, nativeImage, Notification, powerMonitor, protocol, screen, shell, Tray,
+  app, BrowserWindow, clipboard, dialog, globalShortcut, Menu, nativeImage, Notification, powerMonitor, protocol, screen, shell, Tray,
 } from 'electron'
 import { createReadStream, existsSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { basename, extname, isAbsolute, join } from 'node:path'
@@ -10,7 +10,7 @@ import {
   type Device, type EnginePaths, type PhoneApp, type PhoneLink, type PhoneNotification,
 } from '@tether/core'
 import { DEFAULT_APP_OPTIONS, type AppOptions, type AppState, type Bounds, type FileOp } from '../shared/api'
-import { ClipLink } from './cliplink'
+import { ClipLink, writePcImage } from './cliplink'
 import { registerIpc } from './ipc'
 import { loadSettings, paths, saveSettings } from './settings'
 import { trayIcon } from './trayIcon'
@@ -327,7 +327,7 @@ async function copyShot(adb: string, serial: string, path: string): Promise<void
     const img = failed.length ? null : nativeImage.createFromPath(file)
     if (!img || img.isEmpty()) throw new Error('could not read the screenshot')
     const png = img.toPNG()
-    await clipboard.write([new ClipboardItem({ 'image/png': new Blob([new Uint8Array(png)], { type: 'image/png' }) })])
+    await writePcImage(new Uint8Array(png), settings.clip.keepOutOfHistory)
     clipLink.noteImage(statSync(file).size)
   } finally {
     rmSync(file, { force: true })
