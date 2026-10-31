@@ -15,6 +15,7 @@ knowledge.md
 
 # ── AI tooling (local only) ──────────────────────────────────────────
 .claude/
+.superpowers/
 graphify-out/
 
 # ── Dependencies & builds ────────────────────────────────────────────
