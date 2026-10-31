@@ -122,7 +122,7 @@ export class Pilot {
       return { text: (await this.deps.apps()).filter((x) => !isMoneyApp(x.pkg)).map((x) => `${x.name} — ${x.pkg}`).join('\n') }
     }
     const action: PilotAction =
-      req.tool === 'open_app' ? { kind: 'open', pkg: await this.resolve(a.app as string) }
+      req.tool === 'open_app' ? { kind: 'open', pkg: await this.resolve(a.app as string, true) } // the guard blocks money + stops
       : req.tool === 'read_screen' ? { kind: 'read' }
       : req.tool === 'screenshot' ? { kind: 'shot' }
       : req.tool === 'tap' ? { kind: 'tap', x: a.x as number, y: a.y as number }
@@ -215,13 +215,14 @@ export class Pilot {
     return 'Task ended.'
   }
 
-  // App name or package → package. Money apps never resolve (rule 14).
-  private async resolve(app: string): Promise<string> {
+  // App name or package → package. Money apps never make it into a plan (rule 14); open_app lets the guard see them so it
+  // can stop the task.
+  private async resolve(app: string, money = false): Promise<string> {
     const apps = await this.deps.apps()
     for (const x of apps) this.names.set(x.pkg, x.name)
     const hit = apps.find((x) => x.pkg === app) ?? apps.find((x) => x.name.toLowerCase() === app.toLowerCase())
     if (!hit) throw new Error(`UNKNOWN APP: ${app}. USE THE APP'S NAME AS SHOWN ON THE PHONE.`)
-    if (isMoneyApp(hit.pkg)) throw new Error(`MONEY APPS ARE BLOCKED: ${hit.name}`)
+    if (!money && isMoneyApp(hit.pkg)) throw new Error(`MONEY APPS ARE BLOCKED: ${hit.name}`)
     return hit.pkg
   }
 
