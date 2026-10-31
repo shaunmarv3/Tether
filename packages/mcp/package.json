@@ -1,0 +1,15 @@
+{
+  "name": "@tether/mcp",
+  "version": "0.0.0",
+  "private": true,
+  "description": "tether-mcp: stdio MCP server that lets Claude Code use the phone through TETHER's guard.",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "@tether/core": "*",
+    "zod": "4.6.7"
+  }
+}
