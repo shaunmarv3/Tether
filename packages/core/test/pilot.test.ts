@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  chatTitle, IDLE_MS, isMoneyApp, messageDraft, namesMatch, PilotGate, riskOf, STEP_LIMIT, type PilotAction, type PilotTask,
+  chatTitle, IDLE_MS, isMoneyApp, messageDraft, namesMatch, PilotGate, riskOf, screenMark, STEP_LIMIT, type PilotAction, type PilotTask,
 } from '../src/pilot'
 import type { UiNode } from '../src/ui'
 
@@ -61,6 +61,16 @@ describe('chatTitle + messageDraft', () => {
   it('draft falls back to the first input', () => {
     expect(messageDraft([root, { ...input, focused: false }])).toBe('on my way')
     expect(messageDraft([root])).toBe('')
+  })
+})
+
+describe('screenMark', () => {
+  it('changes when the chat or the target changes', () => {
+    const same = screenMark(TAP_SEND, chat('Mom'))
+    expect(screenMark(TAP_SEND, chat('Mom'))).toBe(same)
+    expect(screenMark(TAP_SEND, chat('Monica'))).not.toBe(same)
+    expect(screenMark(TAP_SEND, [root, title('Mom'), input])).not.toBe(same) // send button gone
+    expect(screenMark(TAP_SEND, null)).not.toBe(same)
   })
 })
 
@@ -153,8 +163,19 @@ describe('PilotGate', () => {
     expect(started().check({ kind: 'read' }, p, pNodes, 1).v).toBe('allow')
   })
 
-  it('game screen taps are allowed', () => {
-    expect(started().check({ kind: 'tap', x: 500, y: 500 }, WA, null, 1).v).toBe('allow')
+  it('a swipe that starts on Send is a send', () => {
+    expect(started({ to: 'Mom' }).check({ kind: 'swipe', x1: 990, y1: 2260, x2: 990, y2: 2260 }, WA, chat('Mom'), 1))
+      .toMatchObject({ v: 'ask', why: 'SEND' })
+    expect(started({ to: 'Mom' }).check({ kind: 'swipe', x1: 990, y1: 2260, x2: 995, y2: 2262 }, WA, chat('Monica'), 1))
+      .toMatchObject({ v: 'block', stop: true })
+    expect(started().check({ kind: 'swipe', x1: 500, y1: 1800, x2: 500, y2: 600 }, WA, chat('Mom'), 1).v).toBe('allow') // a scroll
+  })
+
+  it('no screen text: taps and enter ask', () => {
+    expect(started().check({ kind: 'tap', x: 500, y: 500 }, WA, null, 1)).toMatchObject({ v: 'ask', send: null })
+    expect(started().check({ kind: 'key', key: 'enter' }, WA, null, 1)).toMatchObject({ v: 'ask', send: null })
+    expect(started().check({ kind: 'swipe', x1: 1, y1: 2, x2: 3, y2: 4 }, WA, null, 1).v).toBe('allow')
+    expect(started().check({ kind: 'read' }, WA, null, 1).v).toBe('allow')
   })
 
   it('unknown foreground blocks', () => {

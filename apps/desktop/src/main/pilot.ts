@@ -5,7 +5,7 @@ import { rmSync, writeFileSync } from 'node:fs'
 import { createServer, type Server, type Socket } from 'node:net'
 import {
   badArgs, dumpUi, focusedPackage, formatScreen, isMoneyApp, launchApp, Lines, nodeAt, parseRequest, PILOT_PIPE, PilotGate, pressKey,
-  screenPackage, swipeOn, tapAt, type PhoneApp, type PilotAction, type PilotReply, type PilotRequest, type UiNode,
+  screenMark, screenPackage, swipeOn, tapAt, type PhoneApp, type PilotAction, type PilotReply, type PilotRequest, type UiNode,
 } from '@tether/core'
 import type { PilotQuestion, PilotStep, PilotTaskView, PilotView } from '../shared/api'
 
@@ -59,13 +59,14 @@ export class Pilot {
     rmSync(this.deps.tokenFile, { force: true })
   }
 
-  // STOP key, Ctrl+Alt+X, lock, unplug, quit. Quiet when nothing is going on.
-  stop(why: string): void {
+  // STOP key, Ctrl+Alt+X, lock, unplug, quit. Quiet when nothing is going on. `logged` keeps screen text (a chat name in
+  // a guard reason) out of the log file; the page still shows the full reason.
+  stop(why: string, logged = why): void {
     const had = !!this.current || !!this.question
     this.gate.end()
     this.finish('stopped', why)
     this.answer_?.(false)
-    if (had) this.deps.act(`PILOT STOPPED · ${why}`)
+    if (had) this.deps.act(`PILOT STOPPED · ${logged}`)
   }
 
   answer(id: number, yes: boolean): void {
@@ -135,15 +136,24 @@ export class Pilot {
     const label = this.label(action, nodes)
     if (v.v === 'block') {
       this.step(`${label} · BLOCKED: ${v.why}`, 'blocked')
-      if (v.stop) this.stop(v.why)
+      if (v.stop) this.stop(v.why, 'GUARD')
       throw new Error(v.why)
     }
     if (v.v === 'ask') {
+      const mark = screenMark(action, nodes)
       const yes = await this.ask({ kind: v.send ? 'send' : 'risky', app: this.name(fg), why: v.why, to: v.send?.to ?? null,
         message: v.send?.message ?? null, task: null })
       if (!this.gate.task) throw new Error('STOPPED BY THE USER.')
+      if (!yes) {
+        this.step(label, 'asked')
+        throw new Error(NO)
+      }
+      // The user may have taken minutes: act only on the screen they said yes to.
+      if (nodes && screenMark(action, await dumpUi(p.adb, p.serial).catch(() => null)) !== mark) {
+        this.step(`${label} · SCREEN CHANGED`, 'blocked')
+        throw new Error('THE SCREEN CHANGED WHILE THE USER DECIDED. READ THE SCREEN AND TRY AGAIN.')
+      }
       this.step(label, 'asked')
-      if (!yes) throw new Error(NO)
     } else this.step(label, 'ok')
     this.deps.act(`PILOT ${action.kind.toUpperCase()} · ${action.kind === 'open' ? action.pkg : fg}`)
     return this.perform(p, action, fg, nodes)

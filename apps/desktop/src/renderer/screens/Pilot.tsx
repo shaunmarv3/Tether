@@ -19,7 +19,8 @@ export function PilotAsk({ q }: { q: PilotQuestion }) {
   const left = Math.max(0, QUESTION_S - Math.floor((now - since) / 1000))
   const answer = (yes: boolean) => void tether.pilotAnswer(q.id, yes)
   const title = q.kind === 'plan' ? 'AI WANTS TO START A TASK' : q.kind === 'send' ? 'AI WANTS TO SEND'
-    : q.why === 'SETTINGS' ? 'AI WANTS TO CHANGE SETTINGS' : q.why === 'SYSTEM DIALOG' ? 'AI WANTS TO ANSWER A SYSTEM POPUP' : `AI WANTS TO TAP ${q.why}`
+    : q.why === 'SETTINGS' ? 'AI WANTS TO CHANGE SETTINGS' : q.why === 'SYSTEM DIALOG' ? 'AI WANTS TO ANSWER A SYSTEM POPUP'
+    : q.why.includes('WITHOUT SCREEN TEXT') ? `AI WANTS TO ${q.why}` : `AI WANTS TO TAP ${q.why}`
   const [no, yes] = q.kind === 'plan' ? ['DENY', 'ALLOW'] : q.kind === 'send' ? ["DON'T SEND", 'SEND'] : ['NO', 'YES']
 
   return (

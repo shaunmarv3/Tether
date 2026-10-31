@@ -1,6 +1,6 @@
 // The AI pilot's guard (rule 12): every phone action Claude asks for gets a verdict here — allow, ask the user, or
 // block. Pure, so the AI can't talk its way past it and every rule has a test.
-import { nodeAt, type PhoneKey, type UiNode } from './ui'
+import { nodeAt, screenPackage, type PhoneKey, type UiNode } from './ui'
 
 export interface PilotTask { goal: string; steps: string[]; apps: string[] /* packages */; to: string | null }
 export type PilotAction =
@@ -69,6 +69,14 @@ export function namesMatch(planned: string, onScreen: string): boolean {
 
 const block = (why: string, stop = false): Verdict => ({ v: 'block', why, stop })
 
+// What the user agreed to: same app, same chat, same thing under the finger. Compared again after a question, because the
+// screen can change while the user decides.
+export function screenMark(a: PilotAction, nodes: UiNode[] | null): string {
+  if (!nodes) return ''
+  const at = a.kind === 'tap' ? nodeAt(nodes, a.x, a.y) : a.kind === 'swipe' ? nodeAt(nodes, a.x1, a.y1) : null
+  return JSON.stringify([screenPackage(nodes), chatTitle(nodes), at && [at.text, at.desc, at.id, at.bounds]])
+}
+
 export class PilotGate {
   task: PilotTask | null = null
   private steps = 0
@@ -106,10 +114,13 @@ export class PilotGate {
     if (isMoneyApp(fg)) return block('A MONEY APP IS OPEN: TASK STOPPED', true)
     if (SYSTEM_DIALOGS.has(fg)) return a.kind === 'read' || a.kind === 'shot' ? { v: 'allow' } : { v: 'ask', why: 'SYSTEM DIALOG', send: null }
     if (!task.apps.includes(fg)) return block(`${fg} IS NOT IN THE PLAN`)
-    if (a.kind === 'read' || a.kind === 'shot' || a.kind === 'swipe') return { v: 'allow' }
-    if (fg === SETTINGS) return { v: 'ask', why: 'SETTINGS', send: null }
-    if (a.kind === 'type' || !nodes) return { v: 'allow' } // no UI tree (game): taps can't be classified
-    const target = a.kind === 'tap' ? nodeAt(nodes, a.x, a.y) : null
+    if (a.kind === 'read' || a.kind === 'shot') return { v: 'allow' }
+    if (fg === SETTINGS && a.kind !== 'swipe') return { v: 'ask', why: 'SETTINGS', send: null }
+    if (a.kind === 'type') return { v: 'allow' }
+    // No UI tree (a game, or uiautomator busy): a tap or Enter can't be classified, so it asks; scrolling can't send.
+    if (!nodes) return a.kind === 'swipe' ? { v: 'allow' } : { v: 'ask', why: `${a.kind === 'tap' ? 'TAP' : 'PRESS ENTER'} WITHOUT SCREEN TEXT`, send: null }
+    // A swipe that starts on a button can click it (finger barely moves): judged like a tap there.
+    const target = a.kind === 'tap' ? nodeAt(nodes, a.x, a.y) : a.kind === 'swipe' ? nodeAt(nodes, a.x1, a.y1) : null
     const word = a.kind === 'key' ? (nodes.some((n) => n.editable && n.focused) ? 'send' : null) : target && riskWord(target)
     if (!word) return { v: 'allow' }
     if (!SEND_WORDS.has(word)) return { v: 'ask', why: word.toUpperCase(), send: null }
