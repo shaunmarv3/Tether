@@ -6,7 +6,7 @@ import { basename, extname, isAbsolute, join } from 'node:path'
 import { Readable } from 'node:stream'
 import {
   clearNotification, countPlaces, createLog, DeviceTracker, findEngine, getStatus, hashPin, identify, installApk, installEngine, listApps, listDir,
-  lockdown, makeDir, newestScreenshot, pickPhone, PinGate, pruneLogs, pullFiles, pushFiles, readActivity, readNotifications, removeFiles, removeStaleForwards, screenshot, sdCards, ShotTracker,
+  lockdown, makeDir, newestScreenshot, run, pickPhone, PinGate, pruneLogs, pullFiles, pushFiles, readActivity, readNotifications, removeFiles, removeStaleForwards, screenshot, sdCards, ShotTracker,
   type Device, type EnginePaths, type PhoneApp, type PhoneLink, type PhoneNotification,
 } from '@tether/core'
 import { DEFAULT_APP_OPTIONS, LOCKED_PILOT, type AppOptions, type AppState, type Bounds, type FileOp } from '../shared/api'
@@ -149,6 +149,28 @@ const pilot = new Pilot({
   onChange: () => push(),
   tokenFile: join(paths.root, 'pilot.token'),
 })
+
+// Claude Code learns about tether-mcp from its own user config: `claude mcp add` (Phase 3 spec §4). TETHER.exe (or dev
+// electron.exe) runs out/main/mcp.js as plain Node. If `claude` can't be started, the page shows the line to copy.
+const MCP_ADD = ['mcp', 'add', 'tether', '--scope', 'user', '-e', 'ELECTRON_RUN_AS_NODE=1', '--', process.execPath, join(__dirname, 'mcp.js')]
+pilot.command = `claude ${MCP_ADD.map((a) => (/\s/.test(a) ? `"${a}"` : a)).join(' ')}`
+
+async function checkClaude(): Promise<void> {
+  try {
+    pilot.connected = (await run('claude', ['mcp', 'get', 'tether'], { timeoutMs: 60_000 })).code === 0
+  } catch {
+    pilot.connected = null // no claude.exe on PATH (or it hung): connect by hand
+  }
+  push()
+}
+
+async function claude(args: string[], done: string): Promise<void> {
+  const r = await run('claude', args, { timeoutMs: 60_000 }).catch(() => null)
+  if (!r) throw new Error("CAN'T START CLAUDE CODE · RUN THE LINE BELOW")
+  if (r.code !== 0) throw new Error((r.stderr || r.stdout).trim().split(/\r?\n/).pop()?.slice(0, 120).toUpperCase() || 'CLAUDE CODE SAID NO')
+  act(done)
+  await checkClaude()
+}
 
 function push(): void {
   win?.webContents.send('tether:state', publicState())
@@ -610,6 +632,7 @@ else {
     timers.push(setInterval(() => void shotTick(), 2000))
     mkdirSync(paths.root, { recursive: true })
     pilot.listen()
+    void checkClaude()
     if (!globalShortcut.register('Control+Alt+X', () => pilot.stop('STOPPED BY YOU'))) log('shortcut Ctrl+Alt+X taken')
     for (let i = 0; i < 9; i++) {
       if (!globalShortcut.register(`Control+Alt+${i + 1}`, () => launchLayout(i))) log(`shortcut Ctrl+Alt+${i + 1} taken`)
@@ -803,8 +826,8 @@ else {
       screenOff: () => clipLink.screenOff(),
       pilotAnswer: (id, yes) => pilot.answer(id, yes),
       pilotStop: () => pilot.stop('STOPPED BY YOU'),
-      pilotConnect: async () => { throw new Error('NOT YET') },
-      pilotDisconnect: async () => { throw new Error('NOT YET') },
+      pilotConnect: () => claude(MCP_ADD, 'CLAUDE CODE CONNECTED'),
+      pilotDisconnect: () => claude(['mcp', 'remove', 'tether', '--scope', 'user'], 'CLAUDE CODE DISCONNECTED'),
       saveRecording: async (data) => {
         mkdirSync(saveDir(), { recursive: true })
         const file = join(saveDir(), `Recording_${stamp()}.mp4`)
