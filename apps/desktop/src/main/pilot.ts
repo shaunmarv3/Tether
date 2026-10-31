@@ -117,8 +117,8 @@ export class Pilot {
     if (req.tool === 'end_task') return { text: this.end((a.summary as string | undefined) ?? '') }
     const p = this.deps.phone()
     if (!p) throw new Error('TETHER IS LOCKED OR THE PHONE IS NOT CONNECTED.')
+    if (!this.gate.task) throw new Error('NO APPROVED TASK. CALL start_task FIRST.') // before the screen is even read
     if (req.tool === 'list_apps') {
-      if (!this.gate.task) throw new Error('NO APPROVED TASK. CALL start_task FIRST.')
       return { text: (await this.deps.apps()).filter((x) => !isMoneyApp(x.pkg)).map((x) => `${x.name} — ${x.pkg}`).join('\n') }
     }
     const action: PilotAction =
