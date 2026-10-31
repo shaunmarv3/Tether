@@ -185,6 +185,11 @@ export class ClipLink {
   async pasteToPhone(): Promise<void> {
     const text = await readPc()
     if (!text) throw new Error('PC CLIPBOARD IS EMPTY')
+    this.typeText(text)
+  }
+
+  // Paste text into the focused phone field (AI pilot typing: works for any language and emoji, unlike `input text`).
+  typeText(text: string): void {
     if (Buffer.byteLength(text) > CLIPBOARD_MAX) throw new Error('TOO BIG TO SEND')
     this.sync.fromPc(text) // so the phone's echo isn't written back
     this.send(enc.setClipboard(0, text, true))

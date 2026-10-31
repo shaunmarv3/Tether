@@ -39,6 +39,21 @@ export interface FileOp { busy: boolean; text: string | null; error: boolean } /
 export interface Place { name: string; dir: string; count: number | null }
 export interface NotificationItem extends PhoneNotification { app: string } // app: the phone's name for pkg
 
+// AI pilot (Phase 3). Claude Code drives the phone through tether-mcp; main's guard decides, the user answers questions.
+export interface PilotStep { at: string; text: string; verdict: 'ok' | 'asked' | 'blocked' }
+export interface PilotTaskView {
+  goal: string; steps: string[]; apps: string[] /* names */; to: string | null
+  status: 'waiting' | 'running' | 'denied' | 'stopped' | 'done'; why: string | null // why it stopped
+  log: PilotStep[] /* newest first, max 100 */; summary: string | null; startedAt: string
+}
+export interface PilotQuestion {
+  id: number; kind: 'plan' | 'send' | 'risky'; app: string; why: string
+  to: string | null; message: string | null // send
+  task: { goal: string; steps: string[]; apps: string[]; to: string | null } | null // plan
+}
+export interface PilotView { connected: boolean | null; command: string; current: PilotTaskView | null; past: PilotTaskView[]; question: PilotQuestion | null }
+export const LOCKED_PILOT: PilotView = { connected: null, command: '', current: null, past: [], question: null }
+
 export interface AppState {
   locked: boolean; hasPin: boolean; lockReason: string | null
   weakPassword: boolean // unlocked with an old short PIN: ask for an 8+ character password
@@ -52,6 +67,7 @@ export interface AppState {
   openViews: ViewId[]; pins: Pin[]; appOptions: Record<string, AppOptions>; layouts: Layout[]
   clips: Clip[]; clipStats: { synced: number; wiped: number }; clipSettings: ClipSettings; clipLink: ClipLinkState
   fileOp: FileOp
+  pilot: PilotView
 }
 
 export interface TetherApi {
@@ -108,4 +124,9 @@ export interface TetherApi {
   screenshot(): Promise<void>
   screenOff(): Promise<void>
   saveRecording(data: ArrayBuffer): Promise<void>
+  // AI pilot
+  pilotAnswer(id: number, yes: boolean): Promise<void>
+  pilotStop(): Promise<void>
+  pilotConnect(): Promise<void>
+  pilotDisconnect(): Promise<void>
 }

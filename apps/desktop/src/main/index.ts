@@ -9,9 +9,10 @@ import {
   lockdown, makeDir, newestScreenshot, pickPhone, PinGate, pruneLogs, pullFiles, pushFiles, readActivity, readNotifications, removeFiles, removeStaleForwards, screenshot, sdCards, ShotTracker,
   type Device, type EnginePaths, type PhoneApp, type PhoneLink, type PhoneNotification,
 } from '@tether/core'
-import { DEFAULT_APP_OPTIONS, type AppOptions, type AppState, type Bounds, type FileOp } from '../shared/api'
+import { DEFAULT_APP_OPTIONS, LOCKED_PILOT, type AppOptions, type AppState, type Bounds, type FileOp } from '../shared/api'
 import { ClipLink, writePcImage } from './cliplink'
 import { registerIpc } from './ipc'
+import { Pilot } from './pilot'
 import { loadSettings, paths, saveSettings } from './settings'
 import { trayIcon } from './trayIcon'
 import { TITLE_BAR, Views } from './views'
@@ -45,13 +46,14 @@ const state: AppState = {
   device: null, status: null, unknown: [], known: settings.knownPhones, idleMinutes: settings.idleMinutes,
   openViews: [], pins: settings.pins, appOptions: settings.apps, layouts: settings.layouts,
   clips: [], clipStats: { synced: 0, wiped: 0 }, clipSettings: settings.clip, clipLink: 'off', fileOp: { busy: false, text: null, error: false },
+  pilot: LOCKED_PILOT,
 }
 
 // The renderer never sees phone data while locked.
 const publicState = (): AppState => state.locked
   ? { ...state, device: null, status: null, unknown: [], known: [], openViews: [], pins: [], appOptions: {}, layouts: [],
-      clips: [], clipStats: { synced: 0, wiped: 0 }, clipLink: 'off', fileOp: { busy: false, text: null, error: false } }
-  : { ...state, clips: clipLink.clips, clipStats: { ...clipLink.stats }, clipLink: clipLink.state }
+      clips: [], clipStats: { synced: 0, wiped: 0 }, clipLink: 'off', fileOp: { busy: false, text: null, error: false }, pilot: LOCKED_PILOT }
+  : { ...state, clips: clipLink.clips, clipStats: { ...clipLink.stats }, clipLink: clipLink.state, pilot: pilot.view() }
 const readyDevice = (): PhoneLink | null => (state.device?.state === 'device' ? state.device : null)
 const linkLabel = (d: PhoneLink) => (d.transport === 'usb' ? 'USB' : 'WI-FI')
 const appOptions = (pkg: string): AppOptions => settings.apps[pkg] ?? DEFAULT_APP_OPTIONS
@@ -111,6 +113,43 @@ const clipLink = new ClipLink({
   onChange: () => push(),
 })
 
+// AI pilot (Phase 3): tether-mcp → pipe → this guard. Questions bring the main window forward and keep it on top.
+const pilot = new Pilot({
+  phone: () => {
+    const d = readyDevice()
+    return engine && d && !state.locked ? { adb: engine.adb, serial: d.serial } : null
+  },
+  apps: () => {
+    const d = readyDevice()
+    return d ? phoneApps(d.serial) : Promise.resolve([])
+  },
+  typeText: (text) => clipLink.typeText(text),
+  shot: async () => {
+    const { adb, serial } = phone()
+    const file = join(paths.root, 'pilot-shot.png')
+    try {
+      await screenshot(adb, serial, file)
+      const img = nativeImage.createFromPath(file)
+      if (img.isEmpty()) throw new Error('SCREENSHOT FAILED')
+      const width = img.getSize().width
+      return { jpeg: img.resize({ width: 540 }).toJPEG(70), factor: width / 540 }
+    } finally {
+      rmSync(file, { force: true })
+    }
+  },
+  openMirror,
+  ask: (open) => {
+    if (!win) return
+    if (open) showWindow()
+    win.setAlwaysOnTop(open)
+    win.flashFrame(open)
+  },
+  act,
+  log,
+  onChange: () => push(),
+  tokenFile: join(paths.root, 'pilot.token'),
+})
+
 function push(): void {
   win?.webContents.send('tether:state', publicState())
   updateTray()
@@ -161,6 +200,7 @@ function recompute(): void {
   }
   for (const sn of warned) if (!unknown.some((u) => u.serialNo === sn)) warned.delete(sn)
   Object.assign(state, { device: next, unknown, phoneLinked: !!current })
+  if (!readyDevice()) pilot.stop('PHONE UNPLUGGED')
   clipLink.update()
   push()
   void refreshStatus()
@@ -201,6 +241,7 @@ function openMirror(): void {
 function lock(reason: string): void {
   if (!settings.pinHash) return // no PIN yet: the setup screen is showing anyway
   Object.assign(state, { locked: true, lockReason: reason, status: null })
+  pilot.stop('TETHER LOCKED')
   clipLink.update() // sync stops while locked
   clipLink.clear()
   lastNotifs = []
@@ -544,6 +585,7 @@ else {
   app.on('before-quit', () => {
     quitting = true
     views.closeAll()
+    pilot.close()
     globalShortcut.unregisterAll()
     tracker?.stop()
     clipLink.stop()
@@ -566,6 +608,9 @@ else {
       if (idle && !state.locked && powerMonitor.getSystemIdleTime() >= idle * 60) autoLock(`IDLE ${idle} MIN`)
     }, 30_000))
     timers.push(setInterval(() => void shotTick(), 2000))
+    mkdirSync(paths.root, { recursive: true })
+    pilot.listen()
+    if (!globalShortcut.register('Control+Alt+X', () => pilot.stop('STOPPED BY YOU'))) log('shortcut Ctrl+Alt+X taken')
     for (let i = 0; i < 9; i++) {
       if (!globalShortcut.register(`Control+Alt+${i + 1}`, () => launchLayout(i))) log(`shortcut Ctrl+Alt+${i + 1} taken`)
     }
@@ -756,6 +801,10 @@ else {
         notifySaved('SCREENSHOT SAVED', file)
       },
       screenOff: () => clipLink.screenOff(),
+      pilotAnswer: (id, yes) => pilot.answer(id, yes),
+      pilotStop: () => pilot.stop('STOPPED BY YOU'),
+      pilotConnect: async () => { throw new Error('NOT YET') },
+      pilotDisconnect: async () => { throw new Error('NOT YET') },
       saveRecording: async (data) => {
         mkdirSync(saveDir(), { recursive: true })
         const file = join(saveDir(), `Recording_${stamp()}.mp4`)

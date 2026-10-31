@@ -56,6 +56,10 @@ const api: TetherApi = {
   screenshot: () => ipcRenderer.invoke('tether:screenshot'),
   screenOff: () => ipcRenderer.invoke('tether:screenOff'),
   saveRecording: (data) => ipcRenderer.invoke('tether:saveRecording', data),
+  pilotAnswer: (id, yes) => ipcRenderer.invoke('tether:pilotAnswer', id, yes),
+  pilotStop: () => ipcRenderer.invoke('tether:pilotStop'),
+  pilotConnect: () => ipcRenderer.invoke('tether:pilotConnect'),
+  pilotDisconnect: () => ipcRenderer.invoke('tether:pilotDisconnect'),
 }
 
 contextBridge.exposeInMainWorld('tether', api)

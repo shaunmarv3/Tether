@@ -52,6 +52,10 @@ export interface Handlers {
   screenshot(): Promise<void>
   screenOff(): void
   saveRecording(data: ArrayBuffer): Promise<void>
+  pilotAnswer(id: number, yes: boolean): void
+  pilotStop(): void
+  pilotConnect(): Promise<void>
+  pilotDisconnect(): Promise<void>
 }
 
 const isIdle = (m: unknown): m is IdleMinutes => m === 0 || m === 5 || m === 10 || m === 30
@@ -180,6 +184,12 @@ export function registerIpc(win: BrowserWindow, h: Handlers): void {
   ipcMain.handle('tether:listNotifications', (e) => { guard(e, true); return h.listNotifications() })
   ipcMain.handle('tether:clearNotification', (e, key: unknown) => { guard(e, true); if (!isNotificationKey(key)) bad('key'); return h.clearNotification(key as string) })
   ipcMain.handle('tether:screenOff', (e) => { guard(e, true); h.screenOff() })
+  ipcMain.handle('tether:pilotAnswer', (e, id: unknown, yes: unknown) => {
+    guard(e, true); if (!isClipId(id) || !isBool(yes)) bad('answer'); h.pilotAnswer(id as number, yes as boolean)
+  })
+  ipcMain.handle('tether:pilotStop', (e) => { guard(e, false); h.pilotStop() }) // STOP works even while locked
+  ipcMain.handle('tether:pilotConnect', (e) => { guard(e, true); return h.pilotConnect() })
+  ipcMain.handle('tether:pilotDisconnect', (e) => { guard(e, true); return h.pilotDisconnect() })
   ipcMain.handle('tether:saveRecording', (e, data: unknown) => {
     guard(e, true); if (!(data instanceof ArrayBuffer) || data.byteLength === 0) bad('recording'); return h.saveRecording(data as ArrayBuffer)
   })
