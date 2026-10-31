@@ -264,6 +264,19 @@ describe('PilotGate', () => {
     expect(ig.check(wave, 'com.instagram.android', igSheet, 2)).toMatchObject({ v: 'block', stop: true }) // other app
   })
 
+  it('an unlabelled button takes the label inside it (ChatGPT Send)', () => {
+    const cg = 'com.openai.chatgpt'
+    const btn = node({ pkg: cg, cls: 'android.view.View', clickable: true, bounds: [930, 1372, 1030, 1472] })
+    const label = node({ pkg: cg, cls: 'android.view.View', desc: 'Send Message', bounds: [931, 1373, 1031, 1473] })
+    const field = node({ pkg: cg, cls: 'android.widget.EditText', text: 'hi', editable: true, focused: true, clickable: true, bounds: [40, 1100, 1040, 1220] })
+    const screen = [node({ pkg: cg, bounds: [0, 0, 1080, 2400] }), field, btn, label]
+    expect(started({ apps: [cg] }).check({ kind: 'tap', x: 980, y: 1422 }, cg, screen, 1)).toEqual({ v: 'ask', why: 'SEND', send: { to: null, message: 'hi' } })
+    // a full-width row is not a button: its message preview doesn't count
+    const row = node({ clickable: true, bounds: [0, 600, 1080, 760] })
+    const preview = node({ text: 'pay me back', bounds: [180, 690, 700, 740] })
+    expect(started().check({ kind: 'tap', x: 540, y: 650 }, WA, [root, row, preview], 1).v).toBe('allow')
+  })
+
   it('never types into a password field', () => {
     const pw = node({ cls: 'android.widget.EditText', editable: true, focused: true, password: true, bounds: [0, 500, 1080, 600] })
     expect(started().check({ kind: 'type', text: '1234' }, WA, [root, pw], 1)).toMatchObject({ v: 'block', stop: false })

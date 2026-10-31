@@ -56,6 +56,18 @@ function risk(n: UiNode): Risk | null {
   return null
 }
 
+// Compose apps (ChatGPT) put a button's label on a separate element over it: an unlabelled, button-sized target takes
+// the labels whose centre sits inside it. Not for big rows, whose message preview isn't a label.
+const BUTTON_MAX = 300 // px, either side
+function riskAt(target: UiNode, nodes: UiNode[]): Risk | null {
+  const [l, t, r, b] = target.bounds
+  if (risk(target) || labels(target).length || r - l > BUTTON_MAX || b - t > BUTTON_MAX) return risk(target)
+  const inside = nodes.filter((n) => n !== target && (n.bounds[0] + n.bounds[2]) / 2 >= l && (n.bounds[0] + n.bounds[2]) / 2 < r
+    && (n.bounds[1] + n.bounds[3]) / 2 >= t && (n.bounds[1] + n.bounds[3]) / 2 < b)
+  const found = inside.map(risk).filter((x): x is Risk => !!x)
+  return (['money', 'send', 'react', 'other'] as const).map((k) => found.find((x) => x.kind === k)).find((x) => x) ?? null
+}
+
 export function riskOf(n: UiNode): Risk['kind'] | null {
   return risk(n)?.kind ?? null
 }
@@ -178,7 +190,7 @@ export class PilotGate {
     const what = a.kind === 'tap' ? 'TAP' : a.kind === 'press' ? 'LONG PRESS' : 'PRESS ENTER'
     if (!nodes) return a.kind === 'swipe' ? { v: 'allow' } : { v: 'ask', why: `${what} WITHOUT SCREEN TEXT`, send: null }
     const r: Risk | null = a.kind === 'key' ? (nodes.some((n) => n.editable && n.focused) ? { kind: 'send', word: 'send' } : null)
-      : target && risk(target)
+      : target && riskAt(target, nodes)
     if (r?.kind === 'money') return block(`PAYMENT BUTTON ("${r.word.toUpperCase()}"): TASK STOPPED`, true)
     if (panel && (a.kind !== 'swipe' || target?.clickable)) return { v: 'ask', why: 'SYSTEM PANEL', send: null }
     if (!r) return { v: 'allow' }
