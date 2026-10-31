@@ -56,56 +56,74 @@ export function PilotAsk({ q }: { q: PilotQuestion }) {
   )
 }
 
-function TaskRow({ t, now }: { t: PilotTaskView; now: number }) {
-  return (
-    <div className="clip-row pilot-past">
-      <div className="clip-body">
-        <span className="row notif-meta">
-          <span className="dir-chip mono">{STATUS[t.status]}</span>
-          <span className="mono tiny muted">{ago(t.startedAt, now)} · {t.apps.join(', ').toUpperCase()}</span>
-        </span>
-        <span className="notif-title">{t.goal}</span>
-        {(t.summary || t.why) && <span className="clip-text muted">{t.summary ?? t.why}</span>}
-      </div>
-    </div>
-  )
-}
-
 export function Pilot({ state }: { state: AppState }) {
   const now = useNow()
   const [error, setError] = useState<string | null>(null)
   const { connected, command, current: t, past } = state.pilot
-  const live = t && (t.status === 'waiting' || t.status === 'running')
+  const live = !!t && (t.status === 'waiting' || t.status === 'running')
   const run = (p: Promise<void>) => { setError(null); p.catch((err) => setError(errText(err))) }
-  const line = connected === true ? 'CLAUDE CODE CONNECTED' : connected === false ? 'CLAUDE CODE NOT CONNECTED' : 'CLAUDE CODE: CONNECT BY HAND'
+  const claude = connected === true ? 'CONNECTED' : connected === false ? 'NOT CONNECTED' : 'CONNECT BY HAND'
 
   return (
     <main className="main">
       <header className="col">
-        <span className="mono small muted">{line} · {t ? STATUS[t.status] : 'NO TASK'}</span>
+        <span className="mono small muted">AI PILOT · CLAUDE CODE {claude}</span>
         <h1 className="headline">Claude drives, <span className="accent-text">you decide.</span></h1>
       </header>
 
-      <div className="clip-layout">
-        <section className="clip-history" aria-labelledby="pilot-h">
-          <h2 id="pilot-h" className="clip-head">TASK · NOW</h2>
+      <div className="cards">
+        <section className="lcd sec-status" aria-label="AI pilot status">
+          <span className="sec-big">{live && <span className="blink">● </span>}{t ? STATUS[t.status] : '● NO TASK'}</span>
+          <div className="sec-grid">
+            <div className="col tight"><span className="dim tiny">CLAUDE CODE</span><span>{claude}</span></div>
+            <div className="col tight"><span className="dim tiny">STEPS</span><span>{t ? `${doneSteps(t)} / 40` : '—'}</span></div>
+            <div className="col tight"><span className="dim tiny">APPS ALLOWED</span><span>{t ? t.apps.join(', ').toUpperCase() : 'NONE'}</span></div>
+            <div className="col tight"><span className="dim tiny">STOP KEY</span><span>CTRL+ALT+X</span></div>
+          </div>
+        </section>
+
+        {live ? (
+          <section className="card lockdown-card" aria-labelledby="stop-h">
+            <div className="col">
+              <h2 id="stop-h" className="card-title">Stop the AI</h2>
+              <p className="card-note">Ends the task at once. Claude has to ask again before it can touch the phone.</p>
+            </div>
+            <button className="key danger" onClick={() => run(tether.pilotStop())}>STOP NOW</button>
+          </section>
+        ) : (
+          <section className="card lockdown-card" aria-labelledby="cc-h">
+            <div className="col">
+              <h2 id="cc-h" className="card-title">Claude Code</h2>
+              <p className="card-note">
+                {connected ? 'Connected. Ask Claude Code to use your phone: every task waits for your ALLOW.'
+                  : 'Connect once so Claude Code gets the phone tools. Only changes a settings file on this PC.'}
+              </p>
+            </div>
+            {connected !== null && (
+              <button className={`key ${connected ? '' : 'accent'} pilot-connect`} onClick={() => run(connected ? tether.pilotDisconnect() : tether.pilotConnect())}>
+                {connected ? 'DISCONNECT' : 'CONNECT CLAUDE CODE'}
+              </button>
+            )}
+            {connected === null && command && (
+              <div className="col">
+                <span className="mono tiny muted">CLAUDE CODE NOT FOUND · RUN THIS IN A TERMINAL</span>
+                <code className="pilot-cmd mono">{command}</code>
+              </div>
+            )}
+            {error && <span className="mono small danger-text" role="alert">{error}</span>}
+          </section>
+        )}
+      </div>
+
+      <div className="cards top">
+        <section className="card" aria-labelledby="task-h">
+          <h2 id="task-h" className="card-head">TASK</h2>
           {t ? (
-            <div className="pilot-task">
-              <div className="row between wrap top">
-                <div className="col pilot-goal">
-                  <span className="mono tiny muted">{t.apps.join(', ').toUpperCase()}{t.to && ` · TO ${t.to.toUpperCase()}`}</span>
-                  <span className="card-title">{t.goal}</span>
-                </div>
-                {live && <button className="key danger pilot-stop" onClick={() => run(tether.pilotStop())}>STOP · CTRL+ALT+X</button>}
-              </div>
-              <div className="lcd pilot-lcd">
-                <div className="screen-row">
-                  <span className="small">{live && <span className="blink">● </span>}{STATUS[t.status]}</span>
-                  <span className="small dim">STEP {doneSteps(t)} / 40</span>
-                </div>
-              </div>
+            <>
+              <span className="card-title pilot-goal">{t.goal}</span>
+              {t.to && <span className="mono tiny muted">MESSAGES ONLY TO · {t.to.toUpperCase()}</span>}
               <ol className="pilot-plan muted">{t.steps.map((s, i) => <li key={i}>{s}</li>)}</ol>
-              <h3 className="card-head">WHAT IT DID</h3>
+              <h3 className="card-head pilot-did">WHAT IT DID</h3>
               {!t.log.length && <span className="mono small muted">NOTHING YET</span>}
               <ul className="pilot-log">
                 {t.log.map((s, i) => (
@@ -116,46 +134,37 @@ export function Pilot({ state }: { state: AppState }) {
                   </li>
                 ))}
               </ul>
-            </div>
+            </>
           ) : (
-            <div className="files-empty mono small muted">NO TASK · ASK CLAUDE CODE TO USE YOUR PHONE</div>
+            <>
+              <p className="card-note">
+                No task right now. In Claude Code, ask for something like “reply to Mom on WhatsApp: on my way”.
+                You will see the plan here first, and nothing happens until you press ALLOW.
+              </p>
+              <span className="mono tiny muted">TETHER MUST BE OPEN AND UNLOCKED · PHONE ON USB</span>
+            </>
           )}
-          {past.length > 0 && <h2 className="clip-head pilot-past-head">PAST TASKS · THIS SESSION</h2>}
-          {past.map((p, i) => <TaskRow key={`${p.startedAt}-${i}`} t={p} now={now} />)}
         </section>
 
-        <aside className="clip-side">
-          <section className="card">
-            <span className="row"><span className={`led ${connected ? 'on' : ''}`} /><h2 className="card-head">CLAUDE CODE</h2></span>
-            <p className="card-note">
-              {connected ? 'Claude Code can ask to use your phone. Every task waits for your ALLOW.'
-                : 'Connect once so Claude Code gets the phone tools. Nothing goes online from this step.'}
-            </p>
-            {connected !== null && (
-              <button className={`key ${connected ? '' : 'accent'}`} onClick={() => run(connected ? tether.pilotDisconnect() : tether.pilotConnect())}>
-                {connected ? 'DISCONNECT' : 'CONNECT CLAUDE CODE'}
-              </button>
-            )}
-            {!connected && command && (
-              <>
-                <span className="mono tiny muted">OR RUN THIS IN A TERMINAL</span>
-                <code className="pilot-cmd mono">{command}</code>
-              </>
-            )}
-            {error && <span className="mono small danger-text" role="alert">{error}</span>}
-          </section>
-          <section className="card">
-            <h2 className="card-head">THE RULES</h2>
+        <div className="col stack">
+          <section className="card" aria-labelledby="rules-h">
+            <h2 id="rules-h" className="card-head">THE RULES</h2>
             <ul className="pilot-rules card-note">
               <li>Nothing happens until you ALLOW a plan.</li>
               <li>Only the apps in the plan can be opened.</li>
               <li>Sends show who and what first. A wrong chat stops the task.</li>
               <li>Deletes, installs and settings ask you too.</li>
               <li>Money apps are always blocked.</li>
-              <li>STOP any time: here, on Mirror, or Ctrl+Alt+X.</li>
             </ul>
           </section>
-        </aside>
+          <section className="lcd activity" aria-label="Past tasks">
+            <span className="dim tiny">PAST TASKS · THIS SESSION</span>
+            {!past.length && <span>NOTHING YET</span>}
+            {past.map((p, i) => (
+              <span key={`${p.startedAt}-${i}`}>{STATUS[p.status]} › {p.goal.toUpperCase()}{(p.summary || p.why) && <span className="dim"> · {(p.summary ?? p.why)!.toUpperCase()}</span>}</span>
+            ))}
+          </section>
+        </div>
       </div>
     </main>
   )

@@ -604,16 +604,12 @@ video.preview-media { width: 100%; height: 100%; }
 .pilot-msg { max-height: 30vh; overflow-y: auto; white-space: pre-wrap; padding: 10px 12px; border-radius: 10px; background: #0a0908; border: 1px solid #2e2c28; }
 .pilot-from { white-space: nowrap; }
 .pilot-plan { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; line-height: 1.45; }
-.pilot-task { padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; border-bottom: 1px solid #22201d; }
-.pilot-goal { flex: 1 1 260px; min-width: 0; }
-.pilot-goal .card-title { overflow-wrap: anywhere; }
-.key.danger.pilot-stop { min-height: 44px; padding: 0 18px; background: #2a1714; border-color: #6a2e26; color: #ffb3aa; }
-.lcd.pilot-lcd { padding: 10px 14px; border-width: 4px; border-radius: 12px; }
-.pilot-task .card-head { margin: 4px 0 0; }
+.pilot-goal { overflow-wrap: anywhere; }
+.pilot-did { margin-top: 6px; }
 .pilot-log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; max-height: 340px; overflow-y: auto; }
 .pilot-log li { gap: 12px; }
 .pilot-step { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
-.pilot-past-head { border-top: 1px solid var(--border); }
+.key.pilot-connect { justify-content: center; }
 .pilot-cmd {
   display: block; padding: 10px 12px; border-radius: 10px; background: #0a0908; border: 1px solid #2e2c28;
   font-size: 10.5px; line-height: 1.6; color: var(--amber); overflow-wrap: anywhere; user-select: all;
