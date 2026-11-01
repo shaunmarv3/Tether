@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatScreen, nodeAt, parseFocus, parseKeyguard, parsePopups, parseUiDump, screenPackage, type UiNode } from '../src/ui'
+import { formatScreen, nodeAt, parseFocus, parseKeyguard, parseTaskOwner, parsePopups, parseUiDump, screenPackage, type UiNode } from '../src/ui'
 
 // Synthetic dump (shape of `uiautomator dump`), never a real one.
 const node = (attrs: string) => `<node index="0" ${attrs} checkable="false" checked="false" enabled="true" focusable="true" scrollable="false" long-clickable="false" selected="false">`
@@ -119,5 +119,19 @@ describe('formatScreen', () => {
     const nodes = parseUiDump(`<hierarchy>${node('text="hunter2" resource-id="" class="android.widget.EditText" package="p" content-desc="" clickable="true" focused="false" password="true" bounds="[0,0][10,10]"')}</node></hierarchy>`)!
     expect(formatScreen(nodes)).not.toContain('hunter2')
     expect(formatScreen(nodes)).toContain('•••')
+  })
+})
+
+describe('parseTaskOwner', () => {
+  // Shape of `dumpsys activity activities` on the CMF Phone 1 (Android 16): Gemini's stub task showing the Google app.
+  const out = [
+    '  * Task{cd7dd22 #4525 type=standard I=com.google.android.apps.bard/.shellapp.BardEntryPointActivity U=0 visible=true sz=1}',
+    '    topResumedActivity=ActivityRecord{158163853 u0 com.google.android.googlequicksearchbox/com.x.MainActivity t4525}',
+    '  * Task{1d8d208 #4524 type=standard A=10251:com.anthropic.claude U=0 visible=false sz=1}',
+  ].join('\n')
+  it('reads who started the task in front', () => {
+    expect(parseTaskOwner(out)).toBe('com.google.android.apps.bard')
+    expect(parseTaskOwner(out.replace('t4525}', 't4524}'))).toBe('com.anthropic.claude') // affinity when there is no I=
+    expect(parseTaskOwner('nothing here')).toBeNull()
   })
 })

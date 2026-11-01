@@ -116,11 +116,16 @@ export async function windowState(adb: string, serial: string): Promise<{ focus:
   return { focus: parseFocus(out), keyguard: parseKeyguard(out), popups: parsePopups(out) }
 }
 
-// The home screen app (launcher): never counted as part of a plan app.
-export async function homePackage(adb: string, serial: string): Promise<string | null> {
-  const out = await shell(adb, serial, ['cmd', 'package', 'resolve-activity', '--brief', '-a', 'android.intent.action.MAIN', '-c',
-    'android.intent.category.HOME'], 'resolve home')
-  return /^([\w.]+)\//.exec(out.trim().split('\n').pop()?.trim() ?? '')?.[1] ?? null
+// Who started the task in front (its first intent `I=`, else its affinity `A=`), from `dumpsys activity activities`. A
+// launcher stub's task keeps the stub's name while another app's screen runs in it (Gemini → the Google app).
+export function parseTaskOwner(out: string): string | null {
+  const id = /topResumedActivity=ActivityRecord\{\S+ \S+ \S+ t(\d+)\}/.exec(out)?.[1]
+  const task = id ? new RegExp(`Task\\{\\S+ #${id} [^\\n]*`).exec(out)?.[0] ?? '' : ''
+  return /\bI=([\w.]+)\//.exec(task)?.[1] ?? /\bA=\d+:([\w.]+)/.exec(task)?.[1] ?? null
+}
+
+export async function taskOwner(adb: string, serial: string): Promise<string | null> {
+  return parseTaskOwner(await shell(adb, serial, ['dumpsys', 'activity', 'activities'], 'dumpsys activity'))
 }
 
 export async function tapAt(adb: string, serial: string, x: number, y: number): Promise<void> {
