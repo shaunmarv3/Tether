@@ -85,6 +85,14 @@ export async function dumpUi(adb: string, serial: string): Promise<UiNode[] | nu
   return r.code === 0 ? parseUiDump(r.stdout) : null
 }
 
+// A cheap "did the picture change" check for wait_for_change: the phone hashes its own screenshot, so only 32 characters
+// cross the cable (a full dump takes 2–3 s). null when it fails.
+export async function screenHash(adb: string, serial: string): Promise<string | null> {
+  if (!isSerial(serial)) throw new Error(`bad serial: ${serial}`)
+  const r = await run(adb, ['-s', serial, 'exec-out', 'screencap | md5sum'], { timeoutMs: 5000 })
+  return r.code === 0 ? r.stdout.match(/^[0-9a-f]{32}\b/)?.[0] ?? null : null
+}
+
 export function parseKeyguard(dumpsysWindow: string): boolean {
   return /KeyguardServiceDelegate\s+showing=true/.test(dumpsysWindow)
 }

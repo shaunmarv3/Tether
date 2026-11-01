@@ -5,7 +5,7 @@ import { rmSync, writeFileSync } from 'node:fs'
 import { createServer, type Server, type Socket } from 'node:net'
 import {
   badArgs, clearField, dumpUi, formatScreen, isLockScreen, isMoneyApp, launchApp, Lines, longPressAt, messageDraft, nodeAt, parseRequest,
-  PILOT_PIPE, PilotGate, pressKey, screenMark, screenPackage, swipeOn, SYSTEM_PANELS, tapAt, windowState, type PhoneApp, type PilotAction,
+  PILOT_PIPE, PilotGate, pressKey, screenHash, screenMark, screenPackage, swipeOn, SYSTEM_PANELS, tapAt, windowState, type PhoneApp, type PilotAction,
   type PilotReply, type PilotRequest, type Popup, type UiNode,
 } from '@tether/core'
 import type { PilotQuestion, PilotStep, PilotTaskView, PilotView } from '../shared/api'
@@ -21,6 +21,7 @@ export interface PilotDeps {
   log(line: string): void
   onChange(): void
   awake(on: boolean): void // keep the phone screen on while a task is waiting or running
+  saveAskSends(on: boolean): void
   tokenFile: string
 }
 
@@ -51,7 +52,9 @@ export class Pilot {
   private server: Server | null = null
   private token = ''
 
-  constructor(private deps: PilotDeps) {}
+  constructor(private deps: PilotDeps, askSends: boolean) {
+    this.gate.askSends = askSends
+  }
 
   view(): PilotView {
     return {
@@ -60,10 +63,11 @@ export class Pilot {
     }
   }
 
-  // "Ask me before every send" (spec G5). Not saved; main turns it back on when TETHER locks.
+  // "Ask me before every send" (spec G5). Saved: stays as the user left it (user, 2026-11-01).
   setAskSends(on: boolean): void {
     if (this.gate.askSends === on) return
     this.gate.askSends = on
+    this.deps.saveAskSends(on)
     this.deps.act(`PILOT ASK BEFORE SEND ${on ? 'ON' : 'OFF'}`)
     this.deps.onChange()
   }
@@ -229,7 +233,12 @@ export class Pilot {
       this.step(edited !== null ? `${label} · YOUR EDIT` : label, 'asked')
     } else this.step(v.send ? `${label} · "${short(v.send.message, 40)}" · NO POPUP` : label, 'ok')
     this.deps.act(`PILOT ${action.kind.toUpperCase()} · ${action.kind === 'open' ? action.pkg : fg}`)
-    return this.perform(p, action, look, waitS)
+    const done = await this.perform(p, action, look, waitS)
+    if (!v.send) return done
+    // Claude sees the chat with its own message in it, so wait_for_change wakes for what comes next, not for that.
+    await pause(1000)
+    const after = await this.look(p).then((s) => this.unlocked(p, s)).then((s) => this.act(p, { kind: 'read' }, s)).catch(() => null)
+    return after ? { text: `${done.text}\n${after.text}` } : done
   }
 
   // The user changed the message in the SEND popup: empty the field and paste theirs (act checks it really is there).
@@ -248,22 +257,32 @@ export class Pilot {
     return jpeg && { data: jpeg.toString('base64'), x: at[0] / size[0], y: at[1] / size[1] }
   }
 
-  // Re-reads the screen until it differs from the last screen Claude was shown (a reply that came in before this call
-  // counts), then answers like read_screen (guard and lock check included). Compares the open app only when there is no
-  // screen text (games).
+  // Waits until the screen differs from the last screen Claude was shown (a reply that came in before this call counts),
+  // then answers like read_screen (guard and lock check included). Compares the open app only when there is no screen
+  // text (games). The 2–3 s text dump runs only when the phone's screen hash moves, or every 10 s (a secure window
+  // screenshots black).
   private async waitForChange(p: Phone, look: Look, seconds: number): Promise<Result> {
     const before = this.shown ?? { fg: look.fg, text: look.nodes && formatScreen(look.nodes) }
     const end = Date.now() + seconds * 1000
+    const hash = () => screenHash(p.adb, p.serial).catch(() => null)
+    let last = await hash()
     for (let s = look; ; s = await this.look(p)) {
       if (s.locked || s.fg !== before.fg || (before.text !== null && s.nodes && formatScreen(s.nodes) !== before.text)) {
         return this.act(p, { kind: 'read' }, await this.unlocked(p, s))
       }
-      if (Date.now() >= end) break
-      await pause(500)
-      if (!this.gate.task) throw new Error('STOPPED BY THE USER.')
-      if (!this.deps.phone()) throw new Error('TETHER IS LOCKED OR THE PHONE IS NOT CONNECTED.')
+      for (const read = Date.now(); ;) {
+        if (Date.now() >= end) {
+          return { text: `No change in ${seconds} s.${before.text !== null ? '' : ' No screen text here: only the open app was compared.'}` }
+        }
+        await pause(300)
+        if (!this.gate.task) throw new Error('STOPPED BY THE USER.')
+        if (!this.deps.phone()) throw new Error('TETHER IS LOCKED OR THE PHONE IS NOT CONNECTED.')
+        const h = await hash()
+        const moved = !h || h !== last
+        last = h
+        if (moved || Date.now() - read >= 10_000) break
+      }
     }
-    return { text: `No change in ${seconds} s.${before.text !== null ? '' : ' No screen text here: only the open app was compared.'}` }
   }
 
   private async perform(p: Phone, a: PilotAction, { nodes, fg, popups }: Look, waitS: number): Promise<Result> {
@@ -312,7 +331,9 @@ Popup TETHER can't read (${this.name(w.pkg)}) at [${w.bounds.join(',')}]: take a
       this.finish('denied', null)
       throw new Error(NO)
     }
-    this.gate.begin({ goal, steps, apps: pkgs, to }, Date.now())
+    // "to" naming a plan app (ChatGPT, Claude): that app is who Claude talks to.
+    const toApp = to ? pkgs.find((_, i) => names[i].toLowerCase() === to.trim().toLowerCase()) ?? null : null
+    this.gate.begin({ goal, steps, apps: pkgs, to, toApp }, Date.now())
     view.status = 'running'
     this.deps.act(`PILOT TASK STARTED · ${pkgs.join(', ')}`)
     this.deps.openMirror()
