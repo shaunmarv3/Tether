@@ -17,7 +17,8 @@ own PC window and files and clipboard shared both ways.
    The installer is not code-signed, so Windows SmartScreen warns the first
    time: click **More info → Run anyway**.
 3. TETHER opens and walks you through first run:
-   1. **Set a password** (8+ characters). You type it every time TETHER opens.
+   1. **Set a password** (8+ characters). You type it every time TETHER opens
+      (you can turn that off on the Security page).
    2. **Download the engine:** scrcpy + adb from scrcpy's official GitHub
       release (~11 MB, once). Its SHA-256 is checked before anything runs.
    3. **Connect your phone** over USB (see [Phone setup](#phone-setup-one-time)),
@@ -51,6 +52,22 @@ Windows PC                                  Android phone
                                             └─────────────────────────┘
 ```
 
+## AI pilot (Claude Code)
+
+TETHER can let [Claude Code](https://claude.com/claude-code) use your phone: open
+**AI PILOT** and click **Connect Claude Code**, then ask Claude Code for a phone
+task (for example "reply to Mom on WhatsApp: on my way"). The rules live in
+TETHER, not in the AI:
+
+- Nothing happens until you **ALLOW** a plan, and only the apps in it can be used.
+- Sends and reactions show who and what first (you can edit the message); a
+  wrong chat stops the task. A switch lets sends to the planned chat skip the popup.
+- Deletes, installs, settings and system panels ask you; lock screens wait for
+  you to unlock them; money apps and payment buttons are always blocked.
+- **STOP** at any time (Ctrl+Alt+X). Locking TETHER or unplugging the phone stops it too.
+
+Text Claude reads from the phone goes to Anthropic like the rest of your Claude Code chat.
+
 ## Requirements
 
 - **PC:** Windows 10/11, 64-bit
@@ -70,13 +87,15 @@ Windows PC                                  Android phone
 - TETHER only shows or controls phones you trusted in TETHER.
 - USB only. Nothing listens on the internet.
 - The app is protected by a password (8+ characters) and locks when Windows locks or the PC sits idle.
+  You can turn the password off; Windows lock and idle still close the phone windows and stop the AI.
 - A one-click **Lockdown** button disconnects everything.
 
 ## Project layout
 
 ```
 apps/desktop     Electron tray app (UI)
-packages/core    device manager · adb wrapper · scrcpy client
+packages/core    device manager · adb wrapper · scrcpy client · AI pilot guard
+packages/mcp     tether-mcp: the phone tools Claude Code sees (talks only to the running TETHER)
 ```
 
 ## Build from source
