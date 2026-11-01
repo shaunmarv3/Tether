@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { AppState, PilotQuestion, PilotTaskView } from '../../shared/api'
+import { PhoneView } from '../PhoneView'
 import { tether } from '../tether'
 import { ago, Switch, useNow } from './Clipboard'
 import { errText } from './Files'
@@ -86,6 +87,22 @@ export function PilotAsk({ q }: { q: PilotQuestion }) {
         </div>
       </div>
     </div>
+  )
+}
+
+// While the AI drives and you're on another page, the phone stays in view in a corner (user, 2026-11-01).
+export function PilotPip({ ai, open }: { ai: PilotTaskView; open: () => void }) {
+  return (
+    <aside className="pilot-pip" aria-label="Phone screen while the AI drives">
+      <div className="row pilot-pip-head">
+        <span className="led amber blink" />
+        <button className="grow pilot-pip-open mono tiny amber-text" onClick={open} title="Open the Mirror page">
+          AI · STEP {doneSteps(ai)}{ai.to ? '' : ' / 200'}
+        </button>
+        <button className="small-key pilot-strip-stop" onClick={() => void tether.pilotStop()}>STOP</button>
+      </div>
+      <PhoneView view="mirror" />
+    </aside>
   )
 }
 

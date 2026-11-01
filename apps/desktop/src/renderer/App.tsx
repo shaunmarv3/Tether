@@ -11,7 +11,7 @@ import { Layouts } from './screens/Layouts'
 import { Lock } from './screens/Lock'
 import { Mirror } from './screens/Mirror'
 import { Notifications } from './screens/Notifications'
-import { Pilot, PilotAsk } from './screens/Pilot'
+import { Pilot, PilotAsk, PilotPip } from './screens/Pilot'
 import { Security } from './screens/Security'
 import { Sidebar, type Page } from './Sidebar'
 import { tether } from './tether'
@@ -133,6 +133,9 @@ export function App() {
           </span>
           {toast.text!.endsWith('OPEN FOLDER') && <button className="small-key" onClick={() => void tether.openSaveFolder()}>OPEN FOLDER</button>}
         </div>
+      )}
+      {ready && page !== 'mirror' && state.pilot.current?.status === 'running' && (
+        <PilotPip ai={state.pilot.current} open={() => setPage('mirror')} />
       )}
       {state.pilot.question && <PilotAsk q={state.pilot.question} />}
     </div>
