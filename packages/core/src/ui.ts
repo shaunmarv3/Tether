@@ -116,15 +116,17 @@ export async function windowState(adb: string, serial: string): Promise<{ focus:
   return { focus: parseFocus(out), keyguard: parseKeyguard(out), popups: parsePopups(out) }
 }
 
-// Who started the task in front (its first intent `I=`, else its affinity `A=`), from `dumpsys activity activities`. A
-// launcher stub's task keeps the stub's name while another app's screen runs in it (Gemini → the Google app).
-export function parseTaskOwner(out: string): string | null {
-  const id = /topResumedActivity=ActivityRecord\{\S+ \S+ \S+ t(\d+)\}/.exec(out)?.[1]
-  const task = id ? new RegExp(`Task\\{\\S+ #${id} [^\\n]*`).exec(out)?.[0] ?? '' : ''
-  return /\bI=([\w.]+)\//.exec(task)?.[1] ?? /\bA=\d+:([\w.]+)/.exec(task)?.[1] ?? null
+// The app in front and who started its task (the task's first intent `I=`, else its affinity `A=`), both from one
+// `dumpsys activity activities` snapshot. A launcher stub's task keeps the stub's name while another app's screen runs
+// in it (Gemini → the Google app).
+export function parseTaskOwner(out: string): { pkg: string; owner: string } | null {
+  const top = /topResumedActivity=ActivityRecord\{\S+ \S+ ([\w.]+)\/\S* t(\d+)\}/.exec(out)
+  const task = top ? new RegExp(`Task\\{\\S+ #${top[2]} [^\\n]*`).exec(out)?.[0] ?? '' : ''
+  const owner = /\bI=([\w.]+)\//.exec(task)?.[1] ?? /\bA=\d+:([\w.]+)/.exec(task)?.[1]
+  return top && owner ? { pkg: top[1], owner } : null
 }
 
-export async function taskOwner(adb: string, serial: string): Promise<string | null> {
+export async function taskOwner(adb: string, serial: string): Promise<{ pkg: string; owner: string } | null> {
   return parseTaskOwner(await shell(adb, serial, ['dumpsys', 'activity', 'activities'], 'dumpsys activity'))
 }
 

@@ -129,9 +129,9 @@ describe('parseTaskOwner', () => {
     '    topResumedActivity=ActivityRecord{158163853 u0 com.google.android.googlequicksearchbox/com.x.MainActivity t4525}',
     '  * Task{1d8d208 #4524 type=standard A=10251:com.anthropic.claude U=0 visible=false sz=1}',
   ].join('\n')
-  it('reads who started the task in front', () => {
-    expect(parseTaskOwner(out)).toBe('com.google.android.apps.bard')
-    expect(parseTaskOwner(out.replace('t4525}', 't4524}'))).toBe('com.anthropic.claude') // affinity when there is no I=
+  it('reads the app in front and who started its task, from one snapshot', () => {
+    expect(parseTaskOwner(out)).toEqual({ pkg: 'com.google.android.googlequicksearchbox', owner: 'com.google.android.apps.bard' })
+    expect(parseTaskOwner(out.replace('t4525}', 't4524}'))?.owner).toBe('com.anthropic.claude') // affinity when there is no I=
     expect(parseTaskOwner('nothing here')).toBeNull()
   })
 })

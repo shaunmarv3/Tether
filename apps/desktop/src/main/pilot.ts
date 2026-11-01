@@ -334,15 +334,16 @@ Popup TETHER can't read (${this.name(w.pkg)}) at [${w.bounds.join(',')}]: take a
 
   // Some apps are launcher stubs that hand over to another app (Gemini → the Google app): watches where the phone lands
   // for up to 3 s. Only an app running in the task the plan app started counts (a failed launch, the home screen or any
-  // other app never does).
+  // other app never does). App and task owner come from one snapshot: the window focus lags behind a launch.
   private async handover(p: Phone, pkg: string): Promise<string | null> {
     for (const start = Date.now(); Date.now() - start < 3000; await pause(300)) {
-      const fg = (await windowState(p.adb, p.serial).catch(() => null))?.focus ?? null
-      if (fg === pkg) {
+      const top = await taskOwner(p.adb, p.serial).catch(() => null)
+      if (top?.pkg === pkg) {
         if (Date.now() - start >= 1000) return null
         continue
       }
-      if (!fg || (await taskOwner(p.adb, p.serial).catch(() => null)) !== pkg) continue
+      if (!top || top.owner !== pkg) continue
+      const fg = top.pkg
       if (!this.gate.adopt(pkg, fg)) return null
       this.step(`${this.name(pkg)} OPENED INSIDE ${this.name(fg)}`, 'ok')
       this.deps.act(`PILOT ${pkg} RUNS INSIDE ${fg}`)
