@@ -206,6 +206,9 @@ export class PilotGate {
     if (looks) return { v: 'allow' }
     const panel = fg === SYSTEM_PANELS
     if (fg === SETTINGS && a.kind !== 'swipe') return { v: 'ask', why: 'SETTINGS', send: null }
+    if (a.kind === 'type' && nodes && !nodes.some((n) => n.editable && n.focused)) {
+      return block('NO TEXT BOX IS SELECTED: TAP THE BOX FIRST') // the paste would go nowhere
+    }
     if (a.kind === 'type') return panel ? { v: 'ask', why: 'SYSTEM PANEL', send: null } : { v: 'allow' }
     // A popup TETHER can't read (a reaction row, a menu): always asks, even with the send switch OFF; wrong chat still stops.
     const popup = popupAt(a, popups)

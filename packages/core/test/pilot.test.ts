@@ -166,6 +166,12 @@ describe('PilotGate', () => {
     expect(started().check({ kind: 'key', key: 'enter' }, WA, [root, sendBtn], 1).v).toBe('allow')
   })
 
+  it('typing with no text box selected is refused (the text would go nowhere)', () => {
+    const unfocused = node({ text: 'Message', id: 'com.whatsapp:id/entry', editable: true, bounds: [40, 2200, 900, 2320] })
+    expect(started().check({ kind: 'type', text: 'hi' }, WA, [root, unfocused], 1)).toMatchObject({ v: 'block', stop: false })
+    expect(started().check({ kind: 'type', text: 'hi' }, WA, null, 1).v).toBe('allow') // no screen text: can't tell
+  })
+
   it('enter in a search box is not a send', () => {
     const search = node({ text: 'mom', id: 'com.whatsapp:id/search_input', editable: true, focused: true, bounds: [40, 100, 900, 200] })
     expect(started({ to: 'Mom' }).check({ kind: 'key', key: 'enter' }, WA, [root, search], 1).v).toBe('allow')
@@ -325,7 +331,8 @@ describe('PilotGate', () => {
     expect(g().check({ kind: 'read' }, ui, shade, 1).v).toBe('allow')
     expect(g().check({ kind: 'wait' }, ui, shade, 1).v).toBe('allow')
     expect(g().check({ kind: 'tap', x: 600, y: 1000 }, ui, shade, 1)).toMatchObject({ v: 'ask', why: 'SYSTEM PANEL' })
-    expect(g().check({ kind: 'type', text: 'x' }, ui, shade, 1)).toMatchObject({ v: 'ask', why: 'SYSTEM PANEL' })
+    const reply = node({ pkg: ui, editable: true, focused: true, bounds: [0, 1500, 1080, 1600] }) // a quick-reply box
+    expect(g().check({ kind: 'type', text: 'x' }, ui, [...shade, reply], 1)).toMatchObject({ v: 'ask', why: 'SYSTEM PANEL' })
     expect(g().check({ kind: 'key', key: 'enter' }, ui, shade, 1)).toMatchObject({ v: 'ask', why: 'SYSTEM PANEL' })
     expect(g().check({ kind: 'swipe', x1: 600, y1: 1000, x2: 600, y2: 300 }, ui, shade, 1).v).toBe('allow')
     expect(g().check({ kind: 'swipe', x1: 100, y1: 300, x2: 100, y2: 310 }, ui, shade, 1)).toMatchObject({ v: 'ask', why: 'SYSTEM PANEL' })
