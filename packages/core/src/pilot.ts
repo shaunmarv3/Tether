@@ -2,7 +2,10 @@
 // block. Pure, so the AI can't talk its way past it and every rule has a test.
 import { nodeAt, screenPackage, type PhoneKey, type Popup, type UiNode } from './ui'
 
-export interface PilotTask { goal: string; steps: string[]; apps: string[] /* packages */; to: string | null }
+export interface PilotTask {
+  goal: string; steps: string[]; apps: string[] /* packages */; to: string | null
+  toApp?: string | null // `to` names a plan app (ChatGPT, Claude): the app itself is who you talk to, so sends go only there
+}
 export type PilotAction =
   | { kind: 'read' } | { kind: 'shot' } | { kind: 'wait' } | { kind: 'open'; pkg: string } | { kind: 'tap'; x: number; y: number }
   | { kind: 'press'; x: number; y: number } // long press: judged like a tap
@@ -102,6 +105,7 @@ export function namesMatch(planned: string, onScreen: string): boolean {
 }
 
 const block = (why: string, stop = false): Verdict => ({ v: 'block', why, stop })
+const isSearch = (n: UiNode) => idWords(n.id).includes('search')
 const wrongChat = (planned: string, onScreen: string | null): Verdict | null =>
   !onScreen ? block("CAN'T READ WHO THIS GOES TO: TASK STOPPED", true)
   : !namesMatch(planned, onScreen) ? block(`WRONG CHAT: "${onScreen}" IS NOT "${planned}". TASK STOPPED`, true) : null
@@ -161,6 +165,15 @@ export class PilotGate {
     return titleById(nodes) ?? (this.seen?.pkg === screenPackage(nodes) ? this.seen.title : null) ?? topText(nodes)
   }
 
+  // Who a send goes to, and the block when it isn't the planned one. With `toApp` the app is the recipient.
+  private recipient(task: PilotTask, fg: string, nodes: UiNode[] | null): { to: string | null; wrong: Verdict | null } {
+    if (task.toApp && task.to) {
+      return { to: task.to, wrong: fg === task.toApp ? null : block(`SENDS GO ONLY TO ${task.to.toUpperCase()}. TASK STOPPED`, true) }
+    }
+    const to = nodes && this.chat(nodes)
+    return { to, wrong: task.to ? wrongChat(task.to, to) : null }
+  }
+
   private judge(task: PilotTask, a: PilotAction, fg: string | null, nodes: UiNode[] | null, popups: Popup[]): Verdict {
     if (a.kind === 'key' && a.key !== 'enter') return { v: 'allow' } // back / home only ever leave
     if (a.kind === 'open') {
@@ -184,19 +197,18 @@ export class PilotGate {
     const popup = popupAt(a, popups)
     if (popup) {
       if (isMoneyApp(popup.pkg)) return block('A MONEY APP IS OPEN: TASK STOPPED', true)
-      return (task.to && wrongChat(task.to, nodes && this.chat(nodes))) || { v: 'ask', why: 'POPUP', send: null }
+      return this.recipient(task, fg, nodes).wrong || { v: 'ask', why: 'POPUP', send: null }
     }
     // No UI tree (a game, or uiautomator busy): a tap or Enter can't be classified, so it asks; scrolling can't send.
     const what = a.kind === 'tap' ? 'TAP' : a.kind === 'press' ? 'LONG PRESS' : 'PRESS ENTER'
     if (!nodes) return a.kind === 'swipe' ? { v: 'allow' } : { v: 'ask', why: `${what} WITHOUT SCREEN TEXT`, send: null }
-    const r: Risk | null = a.kind === 'key' ? (nodes.some((n) => n.editable && n.focused) ? { kind: 'send', word: 'send' } : null)
+    const r: Risk | null = a.kind === 'key' ? (nodes.some((n) => n.editable && n.focused && !isSearch(n)) ? { kind: 'send', word: 'send' } : null)
       : target && riskAt(target, nodes)
     if (r?.kind === 'money') return block(`PAYMENT BUTTON ("${r.word.toUpperCase()}"): TASK STOPPED`, true)
     if (panel && (a.kind !== 'swipe' || target?.clickable)) return { v: 'ask', why: 'SYSTEM PANEL', send: null }
     if (!r) return { v: 'allow' }
     if (r.kind === 'other') return { v: 'ask', why: r.word.toUpperCase(), send: null }
-    const to = this.chat(nodes)
-    const wrong = task.to && wrongChat(task.to, to)
+    const { to, wrong } = this.recipient(task, fg, nodes)
     if (wrong) return wrong
     const send = { to, message: r.kind === 'react' ? r.word : messageDraft(nodes) }
     if (!this.askSends && task.to) return { v: 'allow', send }

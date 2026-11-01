@@ -166,6 +166,23 @@ describe('PilotGate', () => {
     expect(started().check({ kind: 'key', key: 'enter' }, WA, [root, sendBtn], 1).v).toBe('allow')
   })
 
+  it('enter in a search box is not a send', () => {
+    const search = node({ text: 'mom', id: 'com.whatsapp:id/search_input', editable: true, focused: true, bounds: [40, 100, 900, 200] })
+    expect(started({ to: 'Mom' }).check({ kind: 'key', key: 'enter' }, WA, [root, search], 1).v).toBe('allow')
+  })
+
+  it('the plan can name the app itself as the recipient (ChatGPT has no chat name)', () => {
+    const GPT = 'com.openai.chatgpt'
+    const at = (n: Partial<UiNode>) => node({ pkg: GPT, ...n })
+    const screen = [at({ bounds: [0, 0, 1080, 2400] }), at({ text: 'Sure, here is a long answer', bounds: [40, 200, 1000, 300] }),
+      at({ text: 'hi', editable: true, focused: true, bounds: [40, 2200, 900, 2320] }), at({ desc: 'Send', clickable: true, bounds: [920, 2200, 1060, 2320] })]
+    const g = started({ apps: [GPT, WA], to: 'ChatGPT', toApp: GPT })
+    expect(g.check(TAP_SEND, GPT, screen, 1)).toEqual({ v: 'ask', why: 'SEND', send: { to: 'ChatGPT', message: 'hi' } })
+    g.askSends = false
+    expect(g.check(TAP_SEND, GPT, screen, 2)).toEqual({ v: 'allow', send: { to: 'ChatGPT', message: 'hi' } })
+    expect(g.check(TAP_SEND, WA, chat('ChatGPT'), 3)).toMatchObject({ v: 'block', stop: true }) // not the app: wrong chat
+  })
+
   it('settings and system dialogs ask', () => {
     const s = 'com.android.settings'
     const sNodes = [node({ pkg: s, bounds: [0, 0, 1080, 2400] })]
