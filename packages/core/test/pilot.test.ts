@@ -183,6 +183,21 @@ describe('PilotGate', () => {
     expect(g.check(TAP_SEND, WA, chat('ChatGPT'), 3)).toMatchObject({ v: 'block', stop: true }) // not the app: wrong chat
   })
 
+  it('an app that opens inside another app counts as that app (Gemini → Google app)', () => {
+    const GEM = 'com.google.android.apps.bard'
+    const GOO = 'com.google.android.googlequicksearchbox'
+    const at = (n: Partial<UiNode>) => node({ pkg: GOO, ...n })
+    const screen = [at({ bounds: [0, 0, 1080, 2400] }), at({ text: 'hi', editable: true, focused: true, bounds: [40, 2200, 900, 2320] }),
+      at({ desc: 'Send', clickable: true, bounds: [920, 2200, 1060, 2320] })]
+    const g = started({ apps: [GEM], to: 'Gemini', toApp: GEM })
+    expect(g.check({ kind: 'read' }, GOO, screen, 1)).toMatchObject({ v: 'block', stop: false })
+    expect(g.adopt(GEM, GOO)).toBe(true)
+    expect(g.check({ kind: 'read' }, GOO, screen, 2).v).toBe('allow')
+    expect(g.check(TAP_SEND, GOO, screen, 3)).toEqual({ v: 'ask', why: 'SEND', send: { to: 'Gemini', message: 'hi' } })
+    for (const bad of ['com.phonepe.app', SYSTEM_PANELS, 'com.android.settings', 'android']) expect(g.adopt(GEM, bad), bad).toBe(false)
+    expect(g.adopt('com.instagram.android', 'com.example.other')).toBe(false) // not opened from a plan app
+  })
+
   it('settings and system dialogs ask', () => {
     const s = 'com.android.settings'
     const sNodes = [node({ pkg: s, bounds: [0, 0, 1080, 2400] })]

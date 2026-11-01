@@ -130,18 +130,31 @@ export class PilotGate {
   askSends = true // the AI PILOT page switch; OFF skips the popup only for sends to the plan's `to`
   // The last chat name read from a real title field, per app: a full-screen picker (emoji search) can cover it.
   private seen: { pkg: string | null; title: string } | null = null
+  private inside = new Map<string, string>() // app → the plan app it opened from (Gemini runs inside the Google app)
   private steps = 0
   private last = 0
 
   begin(task: PilotTask, now: number): void {
     this.task = task
     this.seen = null
+    this.inside.clear()
     this.steps = 0
     this.last = now
   }
 
   end(): void {
     this.task = null
+  }
+
+  // Opening plan app `from` landed in another app (a launcher stub handing over): that app counts as `from` for this
+  // task. Never a money app, Settings, system panels or dialogs; main also refuses the home screen and the app that was
+  // already open before.
+  adopt(from: string, to: string): boolean {
+    const t = this.task
+    if (!t?.apps.includes(from) || isMoneyApp(to) || to === SETTINGS || to === SYSTEM_PANELS || SYSTEM_DIALOGS.has(to)) return false
+    if (!t.apps.includes(to)) t.apps = [...t.apps, to]
+    this.inside.set(to, from)
+    return true
   }
 
   // popups: windows `uiautomator dump` misses (ui.ts parsePopups).
@@ -168,7 +181,8 @@ export class PilotGate {
   // Who a send goes to, and the block when it isn't the planned one. With `toApp` the app is the recipient.
   private recipient(task: PilotTask, fg: string, nodes: UiNode[] | null): { to: string | null; wrong: Verdict | null } {
     if (task.toApp && task.to) {
-      return { to: task.to, wrong: fg === task.toApp ? null : block(`SENDS GO ONLY TO ${task.to.toUpperCase()}. TASK STOPPED`, true) }
+      const there = fg === task.toApp || this.inside.get(fg) === task.toApp
+      return { to: task.to, wrong: there ? null : block(`SENDS GO ONLY TO ${task.to.toUpperCase()}. TASK STOPPED`, true) }
     }
     const to = nodes && this.chat(nodes)
     return { to, wrong: task.to ? wrongChat(task.to, to) : null }

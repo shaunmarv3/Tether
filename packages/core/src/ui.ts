@@ -116,6 +116,13 @@ export async function windowState(adb: string, serial: string): Promise<{ focus:
   return { focus: parseFocus(out), keyguard: parseKeyguard(out), popups: parsePopups(out) }
 }
 
+// The home screen app (launcher): never counted as part of a plan app.
+export async function homePackage(adb: string, serial: string): Promise<string | null> {
+  const out = await shell(adb, serial, ['cmd', 'package', 'resolve-activity', '--brief', '-a', 'android.intent.action.MAIN', '-c',
+    'android.intent.category.HOME'], 'resolve home')
+  return /^([\w.]+)\//.exec(out.trim().split('\n').pop()?.trim() ?? '')?.[1] ?? null
+}
+
 export async function tapAt(adb: string, serial: string, x: number, y: number): Promise<void> {
   if (!isCoord(x) || !isCoord(y)) throw new Error('bad position')
   await shell(adb, serial, ['input', 'tap', String(x), String(y)], 'tap')

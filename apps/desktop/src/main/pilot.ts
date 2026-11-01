@@ -4,7 +4,7 @@ import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { rmSync, writeFileSync } from 'node:fs'
 import { createServer, type Server, type Socket } from 'node:net'
 import {
-  badArgs, clearField, dumpUi, formatScreen, isLockScreen, isMoneyApp, launchApp, Lines, longPressAt, messageDraft, nodeAt, parseRequest,
+  badArgs, clearField, dumpUi, formatScreen, homePackage, isLockScreen, isMoneyApp, launchApp, Lines, longPressAt, messageDraft, nodeAt, parseRequest,
   PILOT_PIPE, PilotGate, pressKey, screenHash, screenMark, screenPackage, swipeOn, SYSTEM_PANELS, tapAt, windowState, type PhoneApp, type PilotAction,
   type PilotReply, type PilotRequest, type Popup, type UiNode,
 } from '@tether/core'
@@ -319,13 +319,36 @@ Popup TETHER can't read (${this.name(w.pkg)}) at [${w.bounds.join(',')}]: take a
           image: { data: jpeg.toString('base64'), mime: 'image/jpeg' as const },
         }
       }
-      case 'open': await launchApp(p.adb, p.serial, a.pkg); return { text: `Opened ${this.name(a.pkg)}.` }
+      case 'open': {
+        const before = (await windowState(p.adb, p.serial).catch(() => null))?.focus ?? null
+        await launchApp(p.adb, p.serial, a.pkg)
+        const host = await this.handover(p, a.pkg, before)
+        return { text: `Opened ${this.name(a.pkg)}.${host ? ` It runs inside ${this.name(host)} (${host}), which now counts as ${this.name(a.pkg)}.` : ''}` }
+      }
       case 'tap': await tapAt(p.adb, p.serial, a.x, a.y); return { text: 'Tapped.' }
       case 'press': await longPressAt(p.adb, p.serial, a.x, a.y); return { text: 'Long-pressed.' }
       case 'type': this.deps.typeText(a.text); return { text: 'Typed.' }
       case 'swipe': await swipeOn(p.adb, p.serial, a.x1, a.y1, a.x2, a.y2); return { text: 'Swiped.' }
       case 'key': await pressKey(p.adb, p.serial, a.key); return { text: `Pressed ${a.key}.` }
     }
+  }
+
+  // Some apps are launcher stubs that hand over to another app (Gemini → the Google app): watches where the phone lands
+  // for up to 3 s. Not the app that was open before (a launch that failed) and not the home screen.
+  private async handover(p: Phone, pkg: string, before: string | null): Promise<string | null> {
+    for (const start = Date.now(); Date.now() - start < 3000; await pause(300)) {
+      const fg = (await windowState(p.adb, p.serial).catch(() => null))?.focus ?? null
+      if (fg === pkg) {
+        if (Date.now() - start >= 1000) return null
+        continue
+      }
+      if (!fg || fg === before) continue
+      if (fg === await homePackage(p.adb, p.serial).catch(() => null) || !this.gate.adopt(pkg, fg)) return null
+      this.step(`${this.name(pkg)} OPENED INSIDE ${this.name(fg)}`, 'ok')
+      this.deps.act(`PILOT ${pkg} RUNS INSIDE ${fg}`)
+      return fg
+    }
+    return null
   }
 
   private async start(goal: string, steps: string[], appNames: string[], to: string | null): Promise<string> {
