@@ -259,28 +259,43 @@ export class Pilot {
 
   // Waits until the screen differs from the last screen Claude was shown (a reply that came in before this call counts),
   // then answers like read_screen (guard and lock check included). Compares the open app only when there is no screen
-  // text (games). The 2–3 s text dump runs only when the phone's screen hash moves, or every 10 s (a secure window
-  // screenshots black).
+  // text (games). The 2–3 s text dump runs only when the phone shows a picture not seen yet in this wait (a blinking
+  // cursor flips between two), or every 10 s (a secure window screenshots black). A changed screen is read once it holds
+  // still, so a reply still being written (AI apps) comes back whole.
   private async waitForChange(p: Phone, look: Look, seconds: number): Promise<Result> {
     const before = this.shown ?? { fg: look.fg, text: look.nodes && formatScreen(look.nodes) }
     const end = Date.now() + seconds * 1000
-    const hash = () => screenHash(p.adb, p.serial).catch(() => null)
-    let last = await hash()
-    for (let s = look; ; s = await this.look(p)) {
-      if (s.locked || s.fg !== before.fg || (before.text !== null && s.nodes && formatScreen(s.nodes) !== before.text)) {
-        return this.act(p, { kind: 'read' }, await this.unlocked(p, s))
+    const seen = new Set<string>()
+    const fresh = async (): Promise<boolean | null> => { // null: no hash (failed)
+      const h = await screenHash(p.adb, p.serial).catch(() => null)
+      if (!h) return null
+      const isNew = !seen.has(h)
+      seen.add(h)
+      return isNew
+    }
+    const alive = () => {
+      if (!this.gate.task) throw new Error('STOPPED BY THE USER.')
+      if (!this.deps.phone()) throw new Error('TETHER IS LOCKED OR THE PHONE IS NOT CONNECTED.')
+    }
+    await fresh()
+    for (let s = look; ; [s] = await Promise.all([this.look(p), fresh()])) {
+      if (s.locked || s.fg !== before.fg) return this.act(p, { kind: 'read' }, await this.unlocked(p, s))
+      if (before.text !== null && s.nodes && formatScreen(s.nodes) !== before.text) {
+        let moved = false // wait until no new picture for 1.5 s (max 20 s); read again if it moved meanwhile
+        for (let quiet = Date.now(), cap = quiet + 20_000; Date.now() - quiet < 1500 && Date.now() < cap;) {
+          await pause(300)
+          alive()
+          if (await fresh()) [moved, quiet] = [true, Date.now()]
+        }
+        return this.act(p, { kind: 'read' }, await this.unlocked(p, moved ? await this.look(p) : s))
       }
       for (const read = Date.now(); ;) {
         if (Date.now() >= end) {
           return { text: `No change in ${seconds} s.${before.text !== null ? '' : ' No screen text here: only the open app was compared.'}` }
         }
         await pause(300)
-        if (!this.gate.task) throw new Error('STOPPED BY THE USER.')
-        if (!this.deps.phone()) throw new Error('TETHER IS LOCKED OR THE PHONE IS NOT CONNECTED.')
-        const h = await hash()
-        const moved = !h || h !== last
-        last = h
-        if (moved || Date.now() - read >= 10_000) break
+        alive()
+        if ((await fresh()) !== false || Date.now() - read >= 10_000) break
       }
     }
   }
