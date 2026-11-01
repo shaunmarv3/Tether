@@ -98,6 +98,7 @@ server.registerTool('start_task', {
     steps: z.array(z.string().min(1).max(200)).min(1).max(20).describe('Your plan, step by step'),
     apps: z.array(z.string().min(1).max(100)).min(1).max(5).describe('App names (or packages) you will use; only these can be opened'),
     to: z.string().min(1).max(100).optional().describe('The person or chat you will message, if any; sends to anyone else are blocked. '
+      + 'Every word must appear in the chat name on the phone, so use one sure word of it (your own chat: "You"). '
       + 'Chatting with an app itself (ChatGPT, Gemini, Claude): use the app name from apps'),
   },
 }, (a) => call('start_task', a))
