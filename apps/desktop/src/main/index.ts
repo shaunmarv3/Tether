@@ -40,7 +40,9 @@ let shotSerial: string | null = null
 let shotBusy = false
 
 const state: AppState = {
-  locked: true, hasPin: !!settings.pinHash, lockReason: null, phoneLinked: false, // locked until a password is set or entered
+  // locked until a password is set or entered, unless the user turned the password off
+  locked: !(settings.pinHash && settings.passwordOff), hasPin: !!settings.pinHash, lockReason: null, phoneLinked: false,
+  passwordOff: settings.passwordOff,
   weakPassword: false,
   engine: 'missing', engineProgress: null, enginePct: null, engineError: null,
   device: null, status: null, unknown: [], known: settings.knownPhones, idleMinutes: settings.idleMinutes,
@@ -163,8 +165,12 @@ const pilot = new Pilot({
   log,
   onChange: () => push(),
   awake: keepAwake,
+  saveAskSends: (on) => {
+    settings.askSends = on
+    saveSettings(settings)
+  },
   tokenFile: join(paths.root, 'pilot.token'),
-})
+}, settings.askSends)
 
 // Claude Code learns about tether-mcp from its own user config: `claude mcp add` (Phase 3 spec §4). TETHER.exe (or dev
 // electron.exe) runs out/main/mcp.js as plain Node. If `claude` can't be started, the page shows the line to copy.
@@ -278,9 +284,12 @@ function openMirror(): void {
 
 function lock(reason: string): void {
   if (!settings.pinHash) return // no PIN yet: the setup screen is showing anyway
-  Object.assign(state, { locked: true, lockReason: reason, status: null })
   pilot.stop('TETHER LOCKED')
-  pilot.setAskSends(true) // spec G5: never stays OFF past a lock
+  if (settings.passwordOff) { // the user's choice: phone windows close (callers) and the AI stops, nothing locks
+    closePreviews()
+    return push()
+  }
+  Object.assign(state, { locked: true, lockReason: reason, status: null })
   clipLink.update() // sync stops while locked
   clipLink.clear()
   lastNotifs = []
@@ -642,9 +651,12 @@ else {
     tray = new Tray(trayIcon(false))
     tray.on('click', showWindow)
     powerMonitor.on('lock-screen', () => autoLock('WINDOWS LOCKED'))
+    let wasIdle = false // once per idle spell (with the password off TETHER never locks, so it would repeat)
     timers.push(setInterval(() => {
       const idle = settings.idleMinutes
-      if (idle && !state.locked && powerMonitor.getSystemIdleTime() >= idle * 60) autoLock(`IDLE ${idle} MIN`)
+      const idleNow = !!idle && powerMonitor.getSystemIdleTime() >= idle * 60
+      if (idleNow && !wasIdle && !state.locked) autoLock(`IDLE ${idle} MIN`)
+      wasIdle = idleNow
     }, 30_000))
     timers.push(setInterval(() => void shotTick(), 2000))
     mkdirSync(paths.root, { recursive: true })
@@ -690,6 +702,19 @@ else {
         gate = new PinGate(settings.pinHash)
         state.weakPassword = false
         act('PASSWORD CHANGED')
+        push()
+        return 'ok'
+      },
+      setPasswordOff: (off, current) => {
+        if (off) {
+          const result = gate ? gate.tryUnlock(current) : 'wrong'
+          log(`password off: ${result}`)
+          if (result !== 'ok') return result
+        }
+        settings.passwordOff = off
+        saveSettings(settings)
+        state.passwordOff = off
+        act(`PASSWORD ${off ? 'OFF' : 'ON'}`)
         push()
         return 'ok'
       },

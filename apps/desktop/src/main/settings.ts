@@ -16,10 +16,12 @@ export const paths = {
 export interface Settings {
   pinHash?: string; knownPhones: KnownPhone[]; idleMinutes: IdleMinutes
   pins: Pin[]; apps: Record<string, AppOptions>; layouts: Layout[]; clip: ClipSettings
+  passwordOff: boolean // the user's choice: TETHER opens without the password
+  askSends: boolean // AI PILOT "Ask me before every send"
 }
 
 export function loadSettings(): Settings {
-  const defaults: Settings = { knownPhones: [], idleMinutes: 10, pins: [], apps: {}, layouts: [], clip: DEFAULT_CLIP_SETTINGS }
+  const defaults: Settings = { knownPhones: [], idleMinutes: 10, pins: [], apps: {}, layouts: [], clip: DEFAULT_CLIP_SETTINGS, passwordOff: false, askSends: true }
   if (!existsSync(paths.settings)) return defaults
   try {
     const saved = JSON.parse(readFileSync(paths.settings, 'utf8')) as Partial<Settings>

@@ -13,6 +13,7 @@ const api: TetherApi = {
   setPin: (pin) => ipcRenderer.invoke('tether:setPin', pin),
   unlock: (pin) => ipcRenderer.invoke('tether:unlock', pin),
   changePassword: (current, next) => ipcRenderer.invoke('tether:changePassword', current, next),
+  setPasswordOff: (off, current) => ipcRenderer.invoke('tether:setPasswordOff', off, current),
   installEngine: () => ipcRenderer.invoke('tether:installEngine'),
   openMirror: () => ipcRenderer.invoke('tether:openMirror'),
   trust: (serialNo) => ipcRenderer.invoke('tether:trust', serialNo),

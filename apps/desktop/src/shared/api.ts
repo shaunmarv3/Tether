@@ -54,12 +54,13 @@ export interface PilotQuestion {
 }
 export interface PilotView {
   connected: boolean | null; command: string; current: PilotTaskView | null; past: PilotTaskView[]; question: PilotQuestion | null
-  askSends: boolean // "Ask me before every send" (not saved, ON after lock/restart)
+  askSends: boolean // "Ask me before every send" (saved)
 }
 export const LOCKED_PILOT: PilotView = { connected: null, command: '', current: null, past: [], question: null, askSends: true }
 
 export interface AppState {
   locked: boolean; hasPin: boolean; lockReason: string | null
+  passwordOff: boolean // TETHER opens and stays open without the password (Security page switch)
   weakPassword: boolean // unlocked with an old short PIN: ask for an 8+ character password
   phoneLinked: boolean // shown on the Lock screen, so it is the only phone fact visible while locked
   engine: EngineState; engineProgress: string | null; enginePct: number | null; engineError: string | null
@@ -80,6 +81,7 @@ export interface TetherApi {
   setPin(pin: string): Promise<boolean>
   unlock(pin: string): Promise<'ok' | 'wrong' | 'wait'>
   changePassword(current: string, next: string): Promise<'ok' | 'wrong' | 'wait'>
+  setPasswordOff(off: boolean, current: string): Promise<'ok' | 'wrong' | 'wait'> // turning it off needs the password
   installEngine(): Promise<void>
   openMirror(): Promise<void>
   trust(serialNo: string): Promise<void>

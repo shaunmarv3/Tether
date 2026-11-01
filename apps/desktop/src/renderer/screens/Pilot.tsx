@@ -95,7 +95,7 @@ export function Pilot({ state }: { state: AppState }) {
   const { connected, command, current: t, past, askSends } = state.pilot
   const live = !!t && (t.status === 'waiting' || t.status === 'running')
   const run = (p: Promise<void>) => { setError(null); p.catch((err) => setError(errText(err))) }
-  const claude = connected === true ? 'CONNECTED' : connected === false ? 'NOT CONNECTED' : 'CONNECT BY HAND'
+  const claude = connected === true ? 'CONNECTED' : connected === false ? 'NOT CONNECTED' : command ? 'CONNECT BY HAND' : 'CHECKING…'
 
   return (
     <main className="main">
@@ -187,7 +187,7 @@ export function Pilot({ state }: { state: AppState }) {
             </div>
             {!askSends && (
               <span className="mono tiny amber-text" role="status">
-                SENDS TO THE PLANNED PERSON GO WITHOUT ASKING · ANYONE ELSE IS STILL BLOCKED · BACK ON WHEN TETHER LOCKS
+                SENDS TO THE PLANNED PERSON OR APP GO WITHOUT ASKING · ANYONE ELSE IS STILL BLOCKED · STAYS OFF UNTIL YOU TURN IT ON
               </span>
             )}
             <ul className="pilot-rules card-note">

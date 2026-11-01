@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import type { Activity, AppState, IdleMinutes } from '../../shared/api'
 import { PowerIcon } from '../Sidebar'
 import { tether } from '../tether'
+import { Switch } from './Clipboard'
 import { MIN_PASSWORD } from './Lock'
 
 const IDLE: [IdleMinutes, string][] = [[0, 'OFF'], [5, '5 MIN'], [10, '10 MIN'], [30, '30 MIN']]
@@ -18,6 +19,47 @@ function Toggle({ label, note }: { label: string; note: string }) {
       </span>
       <span className="switch on" role="img" aria-label="On" />
     </div>
+  )
+}
+
+// Turning the password off needs it once, so someone at an open TETHER can't just flip it.
+function PasswordSwitch({ off }: { off: boolean }) {
+  const [asking, setAsking] = useState(false)
+  const [pw, setPw] = useState('')
+  const [msg, setMsg] = useState<string | null>(null)
+  const close = () => { setAsking(false); setPw(''); setMsg(null) }
+
+  async function turnOff(e: FormEvent) {
+    e.preventDefault()
+    const result = await tether.setPasswordOff(true, pw)
+    if (result === 'ok') close()
+    else setMsg(result === 'wait' ? 'TOO MANY TRIES · WAIT 30 S' : 'WRONG PASSWORD')
+  }
+
+  return (
+    <>
+      <Switch label="Ask for the password" on={!off}
+        set={(on) => (on ? void tether.setPasswordOff(false, '') : asking ? close() : setAsking(true))} />
+      {asking && (
+        <form className="col" onSubmit={turnOff}>
+          <label className="mono tiny muted" htmlFor="pw-off">TYPE YOUR PASSWORD TO TURN IT OFF</label>
+          <input id="pw-off" className="field pass-field small-field" type="password" maxLength={64} autoComplete="off" autoFocus
+            value={pw} onChange={(e) => { setPw(e.target.value); setMsg(null) }} />
+          <div className="row between wrap">
+            <span className="mono tiny danger-text" role="status">{msg}</span>
+            <div className="row">
+              <button className="key" type="button" onClick={close}>CANCEL</button>
+              <button className="key danger" type="submit" disabled={pw.length < 4}>TURN OFF</button>
+            </div>
+          </div>
+        </form>
+      )}
+      {off && (
+        <span className="mono tiny amber-text" role="status">
+          OFF · TETHER OPENS WITHOUT A PASSWORD · WINDOWS LOCK AND IDLE STILL CLOSE PHONE WINDOWS AND STOP THE AI
+        </span>
+      )}
+    </>
   )
 }
 
@@ -101,6 +143,7 @@ export function Security({ state }: { state: AppState }) {
         <div className="col stack">
           <section className="card" aria-labelledby="lock-h">
             <h2 id="lock-h" className="card-head">APP LOCK</h2>
+            <PasswordSwitch off={state.passwordOff} />
             <Toggle label="Lock when Windows locks" note="ALWAYS ON · CLOSES PHONE WINDOWS" />
             <Toggle label="Warn me about unknown devices" note="ALWAYS ON" />
             <div className="col idle">
