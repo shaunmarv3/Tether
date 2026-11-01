@@ -147,8 +147,8 @@ export class PilotGate {
   }
 
   // Opening plan app `from` landed in another app (a launcher stub handing over): that app counts as `from` for this
-  // task. Never a money app, Settings, system panels or dialogs; main also refuses the home screen and the app that was
-  // already open before.
+  // task. Never a money app, Settings, system panels or dialogs; main only offers an app running in the task that the
+  // plan app itself started.
   adopt(from: string, to: string): boolean {
     const t = this.task
     if (!t?.apps.includes(from) || isMoneyApp(to) || to === SETTINGS || to === SYSTEM_PANELS || SYSTEM_DIALOGS.has(to)) return false
