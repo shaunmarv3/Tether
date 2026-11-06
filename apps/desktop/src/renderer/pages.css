@@ -349,3 +349,23 @@
 .setup-status-text { font-weight: 600; }
 .setup-status .mono { font-size: 11px; }
 .wait-dot.small { width: 8px; height: 8px; box-shadow: 0 0 0 4px rgba(255, 178, 122, 0.18); flex: none; }
+
+/* Phone trust: Home toast (bottom right) + Security section */
+.trust-toast {
+  position: absolute; right: 16px; bottom: 16px; z-index: 15; width: 320px; max-width: calc(100% - 32px);
+  display: flex; align-items: flex-start; gap: 4px; padding: 4px; border-radius: 12px;
+  background: var(--raised-2); border: 1px solid var(--warn-line); box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+}
+.trust-open { flex: 1; min-width: 0; display: flex; gap: 10px; align-items: flex-start; padding: 8px; text-align: left; background: transparent; border: 0; border-radius: 9px; }
+.trust-open:hover { background: var(--selected); }
+.trust-open svg { flex: none; margin-top: 1px; }
+.trust-title { display: block; font-weight: 600; }
+.trust-note { display: block; font-size: 12.5px; color: var(--text-soft); }
+.trust-close { width: 26px; height: 26px; margin: 4px; color: var(--muted); }
+.trust { outline: none; }
+.trust.warn { background: var(--warn-bg); }
+.trust-state { margin: 0; }
+.trust-steps { margin: 4px 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--text-soft); }
+.trust-steps b { color: var(--text); font-weight: 600; }
+.trust-btn { align-self: flex-start; }
+.trust-undo { align-self: flex-start; font-size: 12.5px; }

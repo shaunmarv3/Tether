@@ -88,6 +88,7 @@ export interface TetherApi {
   forget(serialNo: string): Promise<void>
   lockdown(): Promise<void>
   lockNow(): Promise<void> // lock by hand (rail button); not Lockdown
+  keepTrust(forever: boolean): Promise<void> // the phone's "Disable adb authorization timeout"
   popOutPhone(): Promise<void> // the phone screen in its own window (focuses it if open)
   bringBackPhone(): Promise<void> // closes that window: the phone goes back to the dock
   setIdle(minutes: IdleMinutes): Promise<void>

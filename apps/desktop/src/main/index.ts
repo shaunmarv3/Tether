@@ -6,7 +6,7 @@ import { basename, extname, isAbsolute, join } from 'node:path'
 import { Readable } from 'node:stream'
 import {
   clearNotification, countPlaces, createLog, DeviceTracker, findEngine, getStatus, hashPin, identify, installApk, installEngine, listApps, listDir,
-  lockdown, makeDir, newestScreenshot, PhoneStream, run, pickPhone, PinGate, pruneLogs, pullFiles, pushFiles, readActivity, readNotifications, removeFiles, removeStaleForwards, screenshot, sdCards, ShotTracker,
+  lockdown, makeDir, setKeepTrust, newestScreenshot, PhoneStream, run, pickPhone, PinGate, pruneLogs, pullFiles, pushFiles, readActivity, readNotifications, removeFiles, removeStaleForwards, screenshot, sdCards, ShotTracker,
   type Device, type EnginePaths, type PhoneApp, type PhoneLink, type PhoneNotification,
 } from '@tether/core'
 import { DEFAULT_APP_OPTIONS, LOCKED_PILOT, type AppOptions, type AppState, type Bounds, type FileOp } from '../shared/api'
@@ -768,6 +768,12 @@ else {
         recompute()
       },
       lockdown: doLockdown,
+      keepTrust: async (forever) => {
+        const { adb, serial } = phone()
+        await setKeepTrust(adb, serial, forever)
+        act(forever ? 'PHONE KEEPS THIS PC TRUSTED' : 'PHONE FORGETS THIS PC AFTER 7 DAYS UNUSED')
+        await refreshStatus()
+      },
       popOutPhone: () => { if (readyDevice() && !state.locked) views.popOut() },
       bringBackPhone: () => views.bringBack(),
       lockNow: () => {

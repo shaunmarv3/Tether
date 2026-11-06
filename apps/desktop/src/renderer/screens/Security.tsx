@@ -4,6 +4,7 @@ import { sentence } from '../text'
 import { tether } from '../tether'
 import { Segmented, Switch } from '../ui'
 import { MIN_PASSWORD } from './Lock'
+import { TrustSection } from './Trust'
 
 const IDLE: [IdleMinutes, string][] = [[0, 'Off'], [5, '5 min'], [10, '10 min'], [30, '30 min']]
 const SHIELD_OK = 'M12 3l8 3v6c0 5-4 8-8 9-4-1-8-4-8-9V6zM9 12l2 2 4-4'
@@ -91,7 +92,7 @@ function PasswordForm({ weak, off }: { weak: boolean; off: boolean }) {
   )
 }
 
-export function Security({ state }: { state: AppState }) {
+export function Security({ state, trustFocus = false, trustShown = () => {} }: { state: AppState; trustFocus?: boolean; trustShown?: () => void }) {
   const [activity, setActivity] = useState<Activity[] | null>(null)
   const [confirming, setConfirming] = useState<string | null>(null)
   const current = state.device?.state === 'device' ? state.device.serialNo : null
@@ -137,6 +138,7 @@ export function Security({ state }: { state: AppState }) {
         </div>
 
         <div className="sec-col">
+          <TrustSection state={state} focus={trustFocus} done={trustShown} />
           <section className="sec-section" aria-labelledby="sc-al">
             <h2 id="sc-al">App lock</h2>
             <div className="sec-line">Lock when Windows locks<span className="muted">Always on</span></div>

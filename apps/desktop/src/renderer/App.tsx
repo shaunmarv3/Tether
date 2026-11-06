@@ -16,6 +16,7 @@ import { Lock } from './screens/Lock'
 import { Notifications } from './screens/Notifications'
 import { Pilot, PilotAsk, PilotPip, stepLine } from './screens/Pilot'
 import { Security } from './screens/Security'
+import { forgetDays, TrustToast } from './screens/Trust'
 import { useNow } from './screens/Clipboard'
 import { Banners, DropOverlay, fileToast, pageName, Shell, Toasts, type Page, type Toast } from './Shell'
 import { tether } from './tether'
@@ -45,6 +46,8 @@ export function App() {
   const [apks, setApks] = useState<string[]>([]) // dropped APKs waiting for INSTALL / CANCEL
   const [toast, setToast] = useState<AppState['fileOp'] | null>(null)
   const [skipped, setSkipped] = useState(false) // first-run Connect: LATER, this session only
+  const [trustHidden, setTrustHidden] = useState(false) // the Home trust toast's ✕: until Tether opens again
+  const [trustFocus, setTrustFocus] = useState(false) // the toast was clicked: Security scrolls to Phone trust
   const [note, setNote] = useState<Toast | null>(null) // dock results: screenshot, recording, paste…
   const [docks, setDocks] = useState<Partial<Record<Page, boolean>>>({})
   const [visible, setVisible] = useState(true) // main window shown (not hidden to the tray or minimised)
@@ -81,6 +84,8 @@ export function App() {
     window.addEventListener('resize', resize)
     return () => window.removeEventListener('resize', resize)
   }, [])
+
+  useEffect(() => { if (state?.status?.adbTimeoutMs === 0) setTrustHidden(false) }, [state?.status?.adbTimeoutMs])
 
   useEffect(() => {
     if (!note || note.kind === 'busy') return
@@ -145,6 +150,7 @@ export function App() {
   if (state.engine !== 'ready') return <Engine state={state} />
   if (!state.known.length && !skipped) return <Connect state={state} skip={() => setSkipped(true)} />
   const ready = state.device?.state === 'device'
+  const trustDays = forgetDays(state)
   const ai = state.pilot.current?.status === 'running' || state.pilot.current?.status === 'waiting' ? state.pilot.current : null
   const content = (
     <>
@@ -157,8 +163,11 @@ export function App() {
         {page === 'notifications' && <Notifications state={state} />}
         {page === 'pilot' && <Pilot state={state} />}
         {page === 'layouts' && <Layouts state={state} />}
-        {page === 'security' && <Security state={state} />}
+        {page === 'security' && <Security state={state} trustFocus={trustFocus} trustShown={() => setTrustFocus(false)} />}
       </div>
+      {page === 'home' && !trustHidden && trustDays !== null && (
+        <TrustToast days={trustDays} open={() => { setTrustFocus(true); setPage('security') }} close={() => setTrustHidden(true)} />
+      )}
     </>
   )
   const toasts = (

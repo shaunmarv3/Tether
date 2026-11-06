@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { run } from '../src/run'
-import { getStatus, parseStatus } from '../src/status'
+import { getStatus, parseStatus, setKeepTrust } from '../src/status'
 
 vi.mock('../src/run', () => ({ run: vi.fn() }))
 
@@ -21,8 +21,9 @@ const out = (blocks: string[]) => blocks.join('\n@@\n').replace(/\n/g, '\r\n') +
 
 describe('parseStatus', () => {
   it('reads name, android, OEM OS, battery and storage (real CRLF output)', () => {
-    expect(parseStatus(out(['CMF by Nothing Phone 1', 'A015', '16', '4.1', BATTERY, DF]))).toEqual({
+    expect(parseStatus(out(['CMF by Nothing Phone 1', 'A015', '16', '4.1', BATTERY, DF, '604800000']))).toEqual({
       model: 'CMF by Nothing Phone 1', android: '16', nothingOs: '4.1', batteryPct: 48, storageUsedGb: 86, storageTotalGb: 108,
+      adbTimeoutMs: 604800000,
     })
   })
 
@@ -33,8 +34,14 @@ describe('parseStatus', () => {
 
   it('nulls missing battery/df blocks', () => {
     expect(parseStatus(out(['', 'X1', '16', '', '', '']))).toEqual({
-      model: 'X1', android: '16', nothingOs: null, batteryPct: null, storageUsedGb: null, storageTotalGb: null,
+      model: 'X1', android: '16', nothingOs: null, batteryPct: null, storageUsedGb: null, storageTotalGb: null, adbTimeoutMs: null,
     })
+  })
+
+  // "Disable adb authorization timeout" ON writes 0; never touched = null = Android's default (7 days).
+  it('reads the adb authorization timeout: 0 = never forgets this PC, null = the default', () => {
+    expect(parseStatus(out(['', 'X1', '16', '', BATTERY, DF, '0'])).adbTimeoutMs).toBe(0)
+    expect(parseStatus(out(['', 'X1', '16', '', BATTERY, DF, 'null'])).adbTimeoutMs).toBeNull()
   })
 })
 
@@ -47,5 +54,23 @@ describe('getStatus', () => {
   it('rejects when adb exits non-zero', async () => {
     vi.mocked(run).mockResolvedValue({ code: 1, stdout: '', stderr: "device 'X' not found" })
     await expect(getStatus('adb', 'X')).rejects.toThrow(/not found/)
+  })
+})
+
+describe('setKeepTrust', () => {
+  it('turns the 7-day forgetting off (0) or back to the Android default (delete)', async () => {
+    vi.mocked(run).mockResolvedValue({ code: 0, stdout: '', stderr: '' })
+    await setKeepTrust('adb', 'X', true)
+    expect(run).toHaveBeenLastCalledWith('adb', ['-s', 'X', 'shell', 'settings put global adb_allowed_connection_time 0'])
+    await setKeepTrust('adb', 'X', false)
+    expect(run).toHaveBeenLastCalledWith('adb', ['-s', 'X', 'shell', 'settings delete global adb_allowed_connection_time'])
+  })
+
+  it('rejects a bad serial and a refused write', async () => {
+    vi.mocked(run).mockClear()
+    await expect(setKeepTrust('adb', 'x;rm', true)).rejects.toThrow()
+    expect(run).not.toHaveBeenCalled()
+    vi.mocked(run).mockResolvedValue({ code: 255, stdout: '', stderr: 'Permission denial' })
+    await expect(setKeepTrust('adb', 'X', true)).rejects.toThrow(/Permission/)
   })
 })
