@@ -115,6 +115,7 @@ export interface TetherApi {
   sendFiles(paths: string[], dir: string): Promise<void>
   previewFile(path: string): Promise<void> // opens in a small TETHER window, or the file's Windows app
   previewStep(delta: 1 | -1): Promise<void> // preview window only: next/previous media in that folder
+  previewSave(): Promise<{ ok: boolean; text: string }> // preview window only: save the shown file to the PC
   pickAndSend(dir: string): Promise<void>
   saveToPc(paths: string[]): Promise<void>
   deleteFiles(paths: string[]): Promise<void>

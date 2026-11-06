@@ -17,7 +17,7 @@ if (pkg || phone) document.title = q.get('name') ?? pkg ?? 'Phone'
 if (preview) document.title = preview
 
 createRoot(document.getElementById('root')!).render(
-  preview ? <Preview name={preview} kind={q.get('kind') as PreviewKind} pos={q.get('pos') ?? ''} />
-    : pkg ? <AppWindow view={`app:${pkg}`} name={q.get('name') ?? pkg} free={q.get('shape') === 'free'} />
+  preview ? <Preview name={preview} kind={q.get('kind') as PreviewKind} pos={q.get('pos') ?? ''} folder={q.get('folder') ?? ''} />
+    : pkg ? <AppWindow view={`app:${pkg}`} name={q.get('name') ?? pkg} free={q.get('shape') === 'free'} slot={Number(q.get('slot') ?? -1)} />
     : phone ? <AppWindow view="mirror" name={q.get('name') ?? 'Phone'} free={false} /> : <App />,
 )

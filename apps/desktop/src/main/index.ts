@@ -97,7 +97,7 @@ const views = new Views({
     })
     harden(w)
     w.once('ready-to-show', () => w.show())
-    loadRenderer(w, { app: pkg, name, shape: opts.shape })
+    loadRenderer(w, { app: pkg, name, shape: opts.shape, slot: String(settings.pins.findIndex((p) => p.pkg === pkg)) }) // slot: tile colour
     return w
   },
   makePhoneWindow: () => {
@@ -549,8 +549,12 @@ function showPreview(w: BrowserWindow, p: PreviewWin): void {
   const name = p.names[p.i]
   const kind = previewKind(name)!
   w.setTitle(name)
+  const folder = p.dir.split('/').filter(Boolean).pop()
   if (kind === 'pdf') void w.loadURL(`tether-preview://file/${encodeURIComponent(name)}`)
-  else loadRenderer(w, { preview: name, kind, pos: p.names.length > 1 ? `${p.i + 1}/${p.names.length}` : '' })
+  else loadRenderer(w, {
+    preview: name, kind, pos: p.names.length > 1 ? `${p.i + 1}/${p.names.length}` : '',
+    folder: !folder || p.dir === '/sdcard/' ? 'Phone storage' : folder,
+  })
 }
 
 function openPreview(p: PreviewWin): void {
@@ -826,6 +830,10 @@ else {
       sendFiles,
       previewFile,
       isPreviewSender: (sender) => [...previews.keys()].some((w) => w.webContents === sender),
+      previewPath: (sender) => {
+        const p = [...previews].find(([w]) => w.webContents === sender)?.[1]
+        return p ? p.dir + p.names[p.i] : null
+      },
       previewStep: (sender, delta) => {
         const w = [...previews.keys()].find((x) => x.webContents === sender)
         return w ? stepPreview(w, delta) : Promise.resolve()

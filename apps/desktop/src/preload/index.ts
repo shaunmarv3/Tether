@@ -44,6 +44,7 @@ const api: TetherApi = {
   sendFiles: (paths, dir) => ipcRenderer.invoke('tether:sendFiles', paths, dir),
   previewFile: (path) => ipcRenderer.invoke('tether:previewFile', path),
   previewStep: (delta) => ipcRenderer.invoke('tether:previewStep', delta),
+  previewSave: () => ipcRenderer.invoke('tether:previewSave'),
   pickAndSend: (dir) => ipcRenderer.invoke('tether:pickAndSend', dir),
   saveToPc: (paths) => ipcRenderer.invoke('tether:saveToPc', paths),
   deleteFiles: (paths) => ipcRenderer.invoke('tether:deleteFiles', paths),

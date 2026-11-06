@@ -1,35 +1,30 @@
-import { useEffect, useRef, useState, type ChangeEvent } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent, type CSSProperties } from 'react'
+import { sentence } from './text'
 import { tether } from './tether'
+import { EmptyState, ICON, Icon } from './ui'
 
-// Root of a preview window (?preview=<file>&kind=image|video|audio|text&pos=3/444). The file is served by main over
-// tether-preview:// from its preview folder. PDFs don't come here: they open in Chromium's PDF viewer.
+// Root of a preview window (?preview=<file>&kind=image|video|audio|text&pos=3/444&folder=Download). The file is served by
+// main over tether-preview:// from its preview folder. PDFs don't come here: they open in Chromium's PDF viewer.
 export type PreviewKind = 'image' | 'video' | 'audio' | 'text'
 
 const clock = (s: number) => {
   if (!Number.isFinite(s)) return '--:--'
   const t = Math.floor(s)
   const h = Math.floor(t / 3600)
-  const mm = String(Math.floor((t % 3600) / 60)).padStart(2, '0')
+  const mm = String(Math.floor((t % 3600) / 60)).padStart(h ? 2 : 1, '0')
   const ss = String(t % 60).padStart(2, '0')
   return h ? `${h}:${mm}:${ss}` : `${mm}:${ss}`
 }
-
-function Icon({ d }: { d: string }) {
-  return <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d={d} /></svg>
-}
-const PLAY = 'M7 4.5v15l12-7.5z'
-const PAUSE = 'M6 4h4v16H6zM14 4h4v16h-4z'
-const SOUND = 'M4 9h4l5-4v14l-5-4H4zM16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12'
 const MUTED = 'M4 9h4l5-4v14l-5-4H4zM16 9l5 6M21 9l-5 6'
 
-// A slot-style slider: dark recessed track, amber fill, keycap thumb.
-function Slot({ value, max, label, onChange, className }: {
+// A thin track with a cream fill and a round thumb (AP-Windows).
+function Range({ value, max, label, onChange, className }: {
   value: number; max: number; label: string; onChange: (v: number) => void; className?: string
 }) {
   const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0
   return (
-    <input type="range" className={`slot-range ${className ?? ''}`} aria-label={label} min={0} max={max || 1} step="any" value={value}
-      style={{ '--p': `${pct}%` } as React.CSSProperties} onChange={(e: ChangeEvent<HTMLInputElement>) => onChange(Number(e.target.value))} />
+    <input type="range" className={`pv-range ${className ?? ''}`} aria-label={label} min={0} max={max || 1} step="any" value={value}
+      style={{ '--p': `${pct}%` } as CSSProperties} onChange={(e: ChangeEvent<HTMLInputElement>) => onChange(Number(e.target.value))} />
   )
 }
 
@@ -71,34 +66,47 @@ function Player({ src, kind, name }: { src: string; kind: 'video' | 'audio'; nam
     onVolumeChange: () => { setVol(media.current!.volume); setMuted(media.current!.muted) },
     onError: () => setError(true),
   }
+  const play = (
+    <button className="pv-play" aria-label={playing ? 'Pause' : 'Play'} onClick={toggle}>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d={playing ? 'M7 5h4v14H7zM13 5h4v14h-4z' : 'M8 5l11 7-11 7z'} /></svg>
+    </button>
+  )
 
+  if (kind === 'audio') {
+    return (
+      <div className="pv-stage">
+        {error ? <EmptyState boxed title="Can't play this file here" note="Save it to the PC and open it there." /> : (
+          <div className="pv-audio">
+            {play}
+            <div className="grow">
+              <div className="ellipsis pv-audio-name">{name}</div>
+              <div className="mono muted pv-audio-time">Audio · {clock(time)} / {clock(dur)}</div>
+              <Range label="Seek" value={time} max={Number.isFinite(dur) ? dur : 0} onChange={seek} />
+            </div>
+          </div>
+        )}
+        <audio ref={media} src={src} autoPlay {...events} />
+      </div>
+    )
+  }
   return (
     <>
-      <div className="preview-stage" ref={stage} onDoubleClick={kind === 'video' ? full : undefined}>
-        {kind === 'video'
-          ? <video ref={media} className="preview-media" src={src} autoPlay onClick={toggle} {...events} />
-          : (
-            <div className="lcd audio-lcd">
-              <span className="dim tiny">AUDIO</span>
-              <span className="audio-name">{name}</span>
-              <span className="audio-time">{clock(time)}</span>
-              <audio ref={media} src={src} autoPlay {...events} />
-            </div>
-          )}
-        {error && <div className="screen-msg">CAN'T PLAY THIS FILE HERE · SAVE IT TO THE PC AND OPEN IT THERE</div>}
+      <div className="pv-stage" ref={stage} onDoubleClick={full}>
+        <video ref={media} className="pv-media" src={src} autoPlay onClick={toggle} {...events} />
+        {error && <div className="pv-over"><EmptyState boxed title="Can't play this file here" note="Save it to the PC and open it there." /></div>}
       </div>
-      <div className="player-bar">
-        <button className="key accent play-key" aria-label={playing ? 'Pause' : 'Play'} onClick={toggle}><Icon d={playing ? PAUSE : PLAY} /></button>
-        <span className="lcd player-time">{clock(time)} / {clock(dur)}</span>
-        <Slot className="seek" label="Seek" value={time} max={Number.isFinite(dur) ? dur : 0} onChange={seek} />
-        <button className="key icon-key" aria-label={muted ? 'Unmute' : 'Mute'} onClick={() => { media.current!.muted = !media.current!.muted }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d={muted || vol === 0 ? MUTED : SOUND} />
-          </svg>
+      <div className="pv-player" role="group" aria-label="Player">
+        {play}
+        <span className="mono">{clock(time)}</span>
+        <Range className="pv-seek" label="Seek" value={time} max={Number.isFinite(dur) ? dur : 0} onChange={seek} />
+        <span className="mono muted">{clock(dur)}</span>
+        <button className="icon-btn ghost" aria-label={muted ? 'Unmute' : 'Mute'} title={muted ? 'Unmute' : 'Mute'}
+          onClick={() => { media.current!.muted = !media.current!.muted }}>
+          <Icon d={muted || vol === 0 ? MUTED : ICON.volume} size={16} />
         </button>
-        <Slot className="volume" label="Volume" value={muted ? 0 : vol} max={1}
+        <Range className="pv-volume" label="Volume" value={muted ? 0 : vol} max={1}
           onChange={(v) => { media.current!.volume = v; media.current!.muted = v === 0 }} />
-        {kind === 'video' && <button className="key bar-text-key" onClick={full}>FULL</button>}
+        <button className="btn small" onClick={full}>Full screen</button>
       </div>
     </>
   )
@@ -110,15 +118,15 @@ function ImageView({ src }: { src: string }) {
   const [error, setError] = useState(false)
   return (
     <>
-      <div className={`preview-stage ${actual ? 'scroll' : ''}`}>
-        <img className={`preview-media ${actual ? 'actual' : ''}`} src={src} alt="" onClick={() => setActual(!actual)}
-          onLoad={(e) => setSize(`${e.currentTarget.naturalWidth} × ${e.currentTarget.naturalHeight}`)} onError={() => setError(true)} />
-        {error && <div className="screen-msg">CAN'T SHOW THIS IMAGE HERE · SAVE IT TO THE PC AND OPEN IT THERE</div>}
+      <div className={`pv-stage${actual ? ' scroll' : ''}`}>
+        {error ? <EmptyState boxed title="Can't show this image here" note="Save it to the PC and open it there." />
+          : <img className={`pv-media${actual ? ' actual' : ''}`} src={src} alt="" onClick={() => setActual(!actual)}
+            onLoad={(e) => setSize(`${e.currentTarget.naturalWidth} × ${e.currentTarget.naturalHeight}`)} onError={() => setError(true)} />}
       </div>
-      <div className="player-bar">
-        <span className="lcd player-time">{size ?? '—'}</span>
-        <span className="grow" />
-        <button className="key bar-text-key" onClick={() => setActual(!actual)}>{actual ? 'FIT' : '1:1'}</button>
+      <div className="pv-player">
+        <span className="mono muted">{size ?? '—'}</span>
+        <span className="spacer" />
+        <button className="btn small" onClick={() => setActual(!actual)}>{actual ? 'Fit' : 'Actual size'}</button>
       </div>
     </>
   )
@@ -127,20 +135,28 @@ function ImageView({ src }: { src: string }) {
 function TextView({ src }: { src: string }) {
   const [text, setText] = useState<string | null>(null)
   useEffect(() => {
-    void fetch(src).then((r) => r.text()).then((t) => setText(t.length > 2_000_000 ? `${t.slice(0, 2_000_000)}\n…` : t), () => setText('COULD NOT READ THIS FILE'))
+    void fetch(src).then((r) => r.text()).then((t) => setText(t.length > 2_000_000 ? `${t.slice(0, 2_000_000)}\n…` : t), () => setText('Could not read this file.'))
   }, [src])
-  return <pre className="preview-text">{text ?? 'READING…'}</pre>
+  return text === null ? <div className="pv-stage"><EmptyState title="Reading…" kind="loading" /></div> : <pre className="pv-text">{text}</pre>
 }
 
-export function Preview({ name, kind, pos }: { name: string; kind: PreviewKind; pos: string }) {
+export function Preview({ name, kind, pos, folder }: { name: string; kind: PreviewKind; pos: string; folder: string }) {
   const src = `tether-preview://file/${encodeURIComponent(name)}`
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(false)
+  const [saved, setSaved] = useState<string | null>(null)
+  const dot = name.lastIndexOf('.')
+  const type = dot > 0 ? name.slice(dot + 1, dot + 5).toUpperCase() : kind
+  const [n, of] = pos.split('/')
   const step = (delta: 1 | -1) => {
     if (busy || !pos) return
     setBusy(true)
     setError(false)
     tether.previewStep(delta).catch(() => setError(true)).finally(() => setBusy(false)) // success reloads this page
+  }
+  const save = () => {
+    setSaved('Saving…')
+    tether.previewSave().then((r) => setSaved(r.ok ? 'Saved to PC' : sentence(r.text)), () => setSaved('No phone'))
   }
   // ← → step through photos; in a player they seek, so there PageUp / PageDown step.
   useEffect(() => {
@@ -152,17 +168,20 @@ export function Preview({ name, kind, pos }: { name: string; kind: PreviewKind; 
     return () => window.removeEventListener('keydown', onKey)
   })
   return (
-    <div className="app-window preview-window">
-      <div className="app-bar">
-        <span className={`led ${busy ? 'amber blink' : error ? 'red' : 'on'}`} />
-        <span className="app-bar-name">{name}</span>
+    <div className="appwin preview">
+      <div className="appwin-bar pv-bar">
+        <span className="chip pv-chip">{type}</span>
+        <span className="appwin-name ellipsis">{name}</span>
+        {pos && <span className="muted pv-pos">{busy ? 'Loading…' : error ? 'No phone' : `${n} of ${of}${folder ? ` in ${folder}` : ''}`}</span>}
+        <span className="spacer" />
+        {saved && <span className="muted pv-pos" role="status">{saved}</span>}
         {pos && (
           <>
-            <button className="bar-key" aria-label="Previous" disabled={busy} onClick={() => step(-1)}>‹</button>
-            <span className="mono tiny muted">{busy ? 'LOADING' : error ? 'NO PHONE' : pos.replace('/', ' / ')}</span>
-            <button className="bar-key" aria-label="Next" disabled={busy} onClick={() => step(1)}>›</button>
+            <button className="icon-btn ghost" aria-label="Previous file" title="Previous file" disabled={busy} onClick={() => step(-1)}><Icon d={ICON.back} size={16} width={1.8} /></button>
+            <button className="icon-btn ghost" aria-label="Next file" title="Next file" disabled={busy} onClick={() => step(1)}><Icon d={ICON.next} size={16} width={1.8} /></button>
           </>
         )}
+        <button className="btn primary small" disabled={saved === 'Saving…'} onClick={save}>Save to PC</button>
       </div>
       {kind === 'image' && <ImageView src={src} />}
       {(kind === 'video' || kind === 'audio') && <Player src={src} kind={kind} name={name} />}
