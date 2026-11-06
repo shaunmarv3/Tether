@@ -219,10 +219,10 @@ function updateTray(): void {
   const phone = readyDevice()
   tray.setImage(trayIcon(!!phone))
   tray.setToolTip(phone
-    ? `TETHER · ${state.locked ? 'PHONE CONNECTED' : `${state.status?.model ?? phone.name ?? 'PHONE'} · ${linkLabel(phone)}`}`
-    : 'TETHER · NO PHONE')
+    ? `Tether · ${state.locked ? 'PHONE CONNECTED' : `${state.status?.model ?? phone.name ?? 'PHONE'} · ${linkLabel(phone)}`}`
+    : 'Tether · NO PHONE')
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: 'Open TETHER', click: showWindow },
+    { label: 'Open Tether', click: showWindow },
     { label: 'Mirror', enabled: !!phone && !state.locked, click: openMirror },
     { label: 'Lockdown', click: () => void doLockdown() },
     { type: 'separator' },
@@ -254,7 +254,7 @@ function recompute(): void {
   for (const u of unknown) {
     if (warned.has(u.serialNo!)) continue
     warned.add(u.serialNo!)
-    new Notification({ title: 'TETHER', body: 'UNKNOWN DEVICE CONNECTED' }).show() // no name: may show while locked
+    new Notification({ title: 'Tether', body: 'UNKNOWN DEVICE CONNECTED' }).show() // no name: may show while locked
     act(`UNKNOWN DEVICE · ${u.serial}`)
   }
   for (const sn of warned) if (!unknown.some((u) => u.serialNo === sn)) warned.delete(sn)
@@ -615,14 +615,14 @@ async function stepPreview(w: BrowserWindow, delta: 1 | -1): Promise<void> {
 }
 
 function notifySaved(body: string, file: string): void {
-  const n = new Notification({ title: 'TETHER', body, icon })
+  const n = new Notification({ title: 'Tether', body, icon })
   n.on('click', () => shell.showItemInFolder(file))
   n.show()
 }
 
 function createWindow(): BrowserWindow {
   const w = new BrowserWindow({
-    width: 1280, height: 800, minWidth: 520, minHeight: 640, show: false, backgroundColor: '#24100A', title: 'TETHER', icon,
+    width: 1280, height: 800, minWidth: 520, minHeight: 640, show: false, backgroundColor: '#24100A', title: 'Tether', icon,
     autoHideMenuBar: true, titleBarStyle: 'hidden', titleBarOverlay: { color: '#1A0B06', symbolColor: '#F6E9DA', height: 36 },
     webPreferences: webPreferences(),
   })

@@ -1,6 +1,6 @@
-# Windows installer: npm run dist → release/TETHER-Setup-<version>.exe (unsigned, per-user, no admin).
+# Windows installer: npm run dist → release/Tether-Setup-<version>.exe (unsigned, per-user, no admin).
 appId: com.tether.desktop # = APP_ID in src/main/index.ts
-productName: TETHER
+productName: Tether
 electronVersion: 45.1.0 # npm workspace hoisting: don't let it guess
 directories:
   output: release
@@ -19,10 +19,11 @@ npmRebuild: false
 win:
   target: nsis
   icon: resources/icon.ico
-nsis:
-  oneClick: true
-  perMachine: false # %LOCALAPPDATA%\Programs\TETHER
+nsis: # branded wizard: resources/installer.nsh + installerSidebar/uninstallerSidebar/installerHeader.bmp (found by name)
+  oneClick: false
+  perMachine: false # %LOCALAPPDATA%\Programs\..., always per-user (installer.nsh skips the "only for me / anyone" page)
+  allowToChangeInstallationDirectory: false
   createDesktopShortcut: true
-  shortcutName: TETHER
-  artifactName: TETHER-Setup-${version}.${ext}
+  shortcutName: Tether
+  artifactName: Tether-Setup-${version}.${ext}
   deleteAppDataOnUninstall: false # %LOCALAPPDATA%\Tether (password, phones, engine) stays
