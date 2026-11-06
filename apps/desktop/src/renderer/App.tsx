@@ -175,7 +175,7 @@ export function App() {
       {mode === 'split' ? <div className="pane">{content}{toasts}</div>
         : drawer ? <Drawer title={pageName(page)} onClose={() => setDrawer(false)}>{content}{toasts}</Drawer> : toasts}
       {dragging && <DropOverlay ready={ready} where={friendlyPath(page === 'files' ? filesDir : DOWNLOAD)} />}
-      {ready && !(dockOpen && visible) && state.pilot.current?.status === 'running' && (
+      {ready && visible && !dockOpen && !state.phonePopped && state.pilot.current?.status === 'running' && ( // corner phone: dock collapsed
         <PilotPip ai={state.pilot.current} open={() => setDockOpen(true)} />
       )}
       {state.pilot.question && <PilotAsk q={state.pilot.question} />}

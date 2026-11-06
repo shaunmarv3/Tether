@@ -98,7 +98,7 @@ export function PhoneView({ view, flex, onInfo }: { view: ViewId; flex?: boolean
     return () => {
       off()
       clearInterval(tick)
-      void tether.detach(view)
+      tether.detach(view).catch(() => undefined) // refused once the pop-out owns 'mirror': nothing to close here
       if (decoder && decoder.state !== 'closed') decoder.close()
       info.current?.(null)
     }

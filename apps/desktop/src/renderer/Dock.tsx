@@ -82,7 +82,8 @@ export function Dock({ state, mode, open, setOpen, visible, info, stream, onInfo
 }) {
   const screen = useRef<HTMLDivElement>(null)
   const ready = state.device?.state === 'device'
-  const showing = ready && open && visible
+  const popped = state.phonePopped
+  const showing = ready && open && visible && !popped
   const live = showing && !!info
   const driving = state.pilot.current?.status === 'running' || state.pilot.current?.status === 'waiting'
   const empty = phoneState(state)
@@ -125,9 +126,12 @@ export function Dock({ state, mode, open, setOpen, visible, info, stream, onInfo
     <section className={`dock${mode === 'landscape' ? ' wide' : mode === 'compact' ? ' narrow' : ''}`}
       aria-label={mode === 'landscape' ? 'Phone screen, landscape' : 'Phone screen'}>
       <div ref={screen} className={`dock-screen${driving ? ' driving' : ''}`} style={shape}>
-        {ready
-          ? visible && <PhoneView view="mirror" onInfo={onInfo} />
-          : empty && <EmptyState title={empty.title} note={empty.note} kind={empty.kind} />}
+        {!ready ? empty && <EmptyState title={empty.title} note={empty.note} kind={empty.kind} />
+          : popped ? (
+            <EmptyState title="Phone is in its own window">
+              <button className="btn mid" onClick={() => void tether.bringBackPhone()}>Bring back</button>
+            </EmptyState>
+          ) : visible && <PhoneView view="mirror" onInfo={onInfo} />}
       </div>
       <div className="key-toolbar" role="toolbar" aria-label="Phone keys">
         {keys.map(([label, d, run, on], i) => (
@@ -136,7 +140,11 @@ export function Dock({ state, mode, open, setOpen, visible, info, stream, onInfo
             <Icon d={d} size={18} />
           </button>
         ))}
-        <button className="key-btn gap" aria-label="Hide the phone" title="Hide the phone" onClick={() => setOpen(false)}>
+        <button className="key-btn gap" aria-label="Open the phone in its own window" title="Open the phone in its own window"
+          disabled={!ready} onClick={() => void tether.popOutPhone()}>
+          <Icon d={ICON.popout} size={18} />
+        </button>
+        <button className="key-btn" aria-label="Hide the phone" title="Hide the phone" onClick={() => setOpen(false)}>
           <Icon d={ICON.collapse} size={18} />
         </button>
       </div>

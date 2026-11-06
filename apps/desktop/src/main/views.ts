@@ -1,5 +1,5 @@
-// Live phone screens. A view = one scrcpy stream drawn by a renderer: the Mirror page (main display)
-// or an app window (virtual display). One audio-only stream plays phone sound while any view is open.
+// Live phone screens. A view = one scrcpy stream drawn by a renderer: the main window's dock or its pop-out window
+// (main display, view 'mirror'), or an app window (virtual display). One audio-only stream plays phone sound while any view is open.
 import type { BrowserWindow, WebContents } from 'electron'
 import { codecString, enc, PhoneStream, type EnginePaths, type ServerOptions, type StreamEvent } from '@tether/core'
 import type { AppOptions, Bounds, InputEvent, VideoMsg, ViewId } from '../shared/api'
@@ -14,6 +14,7 @@ export interface ViewsDeps {
   mainWindow(): BrowserWindow | null
   appOptions(pkg: string): AppOptions
   makeAppWindow(pkg: string, name: string, opts: AppOptions, bounds: Bounds | null): BrowserWindow
+  makePhoneWindow(): BrowserWindow // the pop-out: the main display in its own window
   onChange(): void
   log(msg: string): void
 }
@@ -36,6 +37,7 @@ export class Views {
   private windows = new Map<string, { win: BrowserWindow; placed: boolean }>() // by package
   private audio: PhoneStream | null = null
   private audioFailed = false
+  private phoneWin: BrowserWindow | null = null // while open, it owns 'mirror' instead of the main window
 
   constructor(private deps: ViewsDeps) {}
 
@@ -43,11 +45,31 @@ export class Views {
     return [...new Set<ViewId>([...this.live.keys(), ...[...this.windows.keys()].map((p) => `app:${p}` as const)])]
   }
 
-  // Mirror → only the main window; app:<pkg> → only that app's window.
+  // Mirror → the pop-out window while it is open, else the main window; app:<pkg> → only that app's window.
   isSender(id: ViewId, sender: WebContents): boolean {
     const pkg = pkgOf(id)
-    return pkg === null ? sender === this.deps.mainWindow()?.webContents : sender === this.windows.get(pkg)?.win.webContents
+    if (pkg !== null) return sender === this.windows.get(pkg)?.win.webContents
+    return sender === (this.phoneWin ?? this.deps.mainWindow())?.webContents
   }
+
+  popped(): boolean { return !!this.phoneWin }
+
+  // The dock's stream ends first; the pop-out attaches its own once it loads (it owns 'mirror' from now on).
+  popOut(): void {
+    if (this.phoneWin) { this.phoneWin.show(); this.phoneWin.focus(); return }
+    this.detach('mirror')
+    const win = this.deps.makePhoneWindow()
+    this.phoneWin = win
+    win.on('closed', () => {
+      if (this.phoneWin !== win) return
+      this.phoneWin = null
+      this.detach('mirror') // back to the dock
+      this.deps.onChange()
+    })
+    this.deps.onChange()
+  }
+
+  bringBack(): void { this.phoneWin?.close() }
 
   async attach(id: ViewId, sender: WebContents): Promise<void> {
     this.detach(id)
@@ -165,6 +187,7 @@ export class Views {
   closeAll(): number {
     const n = this.openViews().length
     for (const { win } of [...this.windows.values()]) win.destroy()
+    this.phoneWin?.destroy()
     for (const id of [...this.live.keys()]) this.detach(id)
     return n
   }

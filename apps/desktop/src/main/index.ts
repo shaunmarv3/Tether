@@ -46,14 +46,14 @@ const state: AppState = {
   weakPassword: false,
   engine: 'missing', engineProgress: null, enginePct: null, engineError: null,
   device: null, status: null, unknown: [], known: settings.knownPhones, idleMinutes: settings.idleMinutes,
-  openViews: [], pins: settings.pins, appOptions: settings.apps, layouts: settings.layouts,
+  openViews: [], phonePopped: false, pins: settings.pins, appOptions: settings.apps, layouts: settings.layouts,
   clips: [], clipStats: { synced: 0, wiped: 0 }, clipSettings: settings.clip, clipLink: 'off', fileOp: { busy: false, text: null, error: false },
   pilot: LOCKED_PILOT,
 }
 
 // The renderer never sees phone data while locked.
 const publicState = (): AppState => state.locked
-  ? { ...state, device: null, status: null, unknown: [], known: [], openViews: [], pins: [], appOptions: {}, layouts: [],
+  ? { ...state, device: null, status: null, unknown: [], known: [], openViews: [], phonePopped: false, pins: [], appOptions: {}, layouts: [],
       clips: [], clipStats: { synced: 0, wiped: 0 }, clipLink: 'off', fileOp: { busy: false, text: null, error: false }, pilot: LOCKED_PILOT }
   : { ...state, clips: clipLink.clips, clipStats: { ...clipLink.stats }, clipLink: clipLink.state, pilot: pilot.view() }
 const readyDevice = (): PhoneLink | null => (state.device?.state === 'device' ? state.device : null)
@@ -100,8 +100,23 @@ const views = new Views({
     loadRenderer(w, { app: pkg, name, shape: opts.shape })
     return w
   },
+  makePhoneWindow: () => {
+    const area = screen.getDisplayMatching(win?.getBounds() ?? { x: 0, y: 0, width: 1, height: 1 }).workArea
+    const h = Math.round(area.height * 0.9) - TITLE_BAR
+    const w = new BrowserWindow({
+      width: Math.round((h * 1080) / 2400) + 12, height: h + TITLE_BAR + 12, useContentSize: true,
+      show: false, backgroundColor: '#24100A', title: state.status?.model ?? 'Phone', icon, autoHideMenuBar: true,
+      titleBarStyle: 'hidden', titleBarOverlay: { color: '#1A0B06', symbolColor: '#F6E9DA', height: TITLE_BAR },
+      webPreferences: webPreferences(),
+    })
+    harden(w)
+    w.once('ready-to-show', () => w.show())
+    loadRenderer(w, { phone: '1', name: state.status?.model ?? 'Phone' })
+    return w
+  },
   onChange: () => {
     state.openViews = views.openViews()
+    state.phonePopped = views.popped()
     push()
   },
   log,
@@ -747,6 +762,8 @@ else {
         recompute()
       },
       lockdown: doLockdown,
+      popOutPhone: () => { if (readyDevice() && !state.locked) views.popOut() },
+      bringBackPhone: () => views.bringBack(),
       lockNow: () => {
         views.closeAll()
         act('LOCKED BY YOU')

@@ -69,7 +69,7 @@ export interface AppState {
   status: DeviceStatus | null
   unknown: PhoneLink[]; known: KnownPhone[]
   idleMinutes: IdleMinutes
-  openViews: ViewId[]; pins: Pin[]; appOptions: Record<string, AppOptions>; layouts: Layout[]
+  openViews: ViewId[]; phonePopped: boolean /* the phone screen is in its own window */; pins: Pin[]; appOptions: Record<string, AppOptions>; layouts: Layout[]
   clips: Clip[]; clipStats: { synced: number; wiped: number }; clipSettings: ClipSettings; clipLink: ClipLinkState
   fileOp: FileOp
   pilot: PilotView
@@ -88,6 +88,8 @@ export interface TetherApi {
   forget(serialNo: string): Promise<void>
   lockdown(): Promise<void>
   lockNow(): Promise<void> // lock by hand (rail button); not Lockdown
+  popOutPhone(): Promise<void> // the phone screen in its own window (focuses it if open)
+  bringBackPhone(): Promise<void> // closes that window: the phone goes back to the dock
   setIdle(minutes: IdleMinutes): Promise<void>
   getActivity(): Promise<Activity[]>
   // phone views
