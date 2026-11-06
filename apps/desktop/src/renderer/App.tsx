@@ -14,7 +14,7 @@ import { Home } from './screens/Home'
 import { Layouts } from './screens/Layouts'
 import { Lock } from './screens/Lock'
 import { Notifications } from './screens/Notifications'
-import { Pilot, PilotAsk, PilotPip } from './screens/Pilot'
+import { Pilot, PilotAsk, PilotPip, stepLine } from './screens/Pilot'
 import { Security } from './screens/Security'
 import { useNow } from './screens/Clipboard'
 import { Banners, DropOverlay, fileToast, pageName, Shell, Toasts, type Page, type Toast } from './Shell'
@@ -144,6 +144,7 @@ export function App() {
   if (state.engine !== 'ready') return <Engine state={state} />
   if (!state.known.length && !skipped) return <Connect state={state} skip={() => setSkipped(true)} />
   const ready = state.device?.state === 'device'
+  const ai = state.pilot.current?.status === 'running' || state.pilot.current?.status === 'waiting' ? state.pilot.current : null
   const content = (
     <>
       <Banners state={state} ignored={ignored} ignore={(sn) => setIgnored((p) => [...p, sn])} go={setPage} />
@@ -171,12 +172,20 @@ export function App() {
         : mode === 'landscape' ? 'Click a page in the rail to slide it over the phone' : HINTS[page]}
       dock={<Dock state={state} mode={mode} open={dockOpen} setOpen={setDockOpen} visible={visible} info={info} stream={stream} onInfo={onInfo}
         recorder={recorder} notify={setNote} />}
-      badges={recorder.startedAt !== null && (
-        <>
-          <span className="live-badge rec" role="status"><span className="dot" />Recording {clock(now - recorder.startedAt)}</span>
-          <button className="btn small" onClick={recorder.stop}>Stop</button>
-        </>
-      )}>
+      badges={<>
+        {ai && (
+          <>
+            <span className="live-badge" role="status"><span className="dot" />AI is driving · {stepLine(ai)}</span>
+            <button className="btn small danger" onClick={() => void tether.pilotStop()}>Stop</button>
+          </>
+        )}
+        {recorder.startedAt !== null && (
+          <>
+            <span className="live-badge rec" role="status"><span className="dot" />Recording {clock(now - recorder.startedAt)}</span>
+            <button className="btn small" onClick={recorder.stop}>Stop</button>
+          </>
+        )}
+      </>}>
       {mode === 'split' ? <div className="pane">{content}{toasts}</div>
         : drawer ? <Drawer title={pageName(page)} onClose={() => setDrawer(false)}>{content}{toasts}</Drawer> : toasts}
       {dragging && <DropOverlay ready={ready} where={friendlyPath(page === 'files' ? filesDir : DOWNLOAD)} />}

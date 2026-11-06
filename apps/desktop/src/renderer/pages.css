@@ -174,3 +174,78 @@
 .layout-form-label { font-weight: 600; }
 .layout-form .field { flex: 1 1 180px; }
 .layout-form-note { flex-basis: 100%; font-size: 12.5px; color: var(--muted); }
+
+/* AI Pilot (AP-Pilot) */
+.pane-body.pilot { flex-wrap: wrap; }
+.pilot-task { flex: 2 1 300px; padding: 14px 18px; border-right: 1px solid var(--line); }
+.pilot-goal { margin: 4px 0 2px; font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
+.pilot-sub { margin: 0 0 10px; }
+.pilot-plan { margin: 0 0 14px; padding-left: 20px; color: var(--text-soft); }
+.pilot-steps { display: grid; grid-template-columns: 52px minmax(0, 1fr) 84px; font-size: 13px; }
+.pilot-step { display: contents; }
+.pilot-step > span { padding: 7px 0; border-bottom: 1px solid var(--line-soft); min-width: 0; }
+.pilot-step.head > span { padding: 6px 0; font-size: 11.5px; font-weight: 600; color: var(--muted); border-bottom-color: var(--line); }
+.pilot-step .mono { font-size: 11px; }
+.pilot-none { grid-column: 1 / -1; padding: 7px 0; }
+.pilot-result.muted { color: var(--muted); }
+.pilot-result.accent { color: var(--accent); }
+.bad { color: var(--danger); }
+.pilot-side { flex: 1 1 220px; border-left: 0; gap: 8px; padding: 14px 18px; }
+.pilot-rules { margin: 0; font-size: 13px; }
+.pilot-warn { margin: 0; font-size: 12.5px; color: var(--accent); }
+.pilot-stopkey { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; }
+.pilot-gap { margin-top: 14px; }
+.pilot-past { display: flex; justify-content: space-between; gap: 10px; min-width: 0; }
+.pilot-past > span:last-child { flex: none; }
+.pilot-cmd { display: block; margin-top: 6px; padding: 8px 10px; background: var(--field); border: 1px solid var(--control-line); border-radius: 8px; font-size: 11px; overflow-wrap: anywhere; user-select: all; }
+.pilot-task .empty { margin: 40px auto; }
+
+/* AI questions (AP-Dialogs): cream dialog over everything */
+.ask-scrim { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 16px; background: rgba(14, 5, 2, 0.62); }
+.ask {
+  width: 100%; max-width: 460px; max-height: calc(100vh - 32px); overflow: auto; padding: 22px; display: flex; flex-direction: column; gap: 10px;
+  background: var(--text); color: var(--ink); border-radius: 16px; box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+}
+.ask-head { display: flex; justify-content: space-between; font-size: 12px; color: #5E4031; }
+.ask-kicker { font-weight: 600; color: #7A4A30; }
+.ask-title { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; overflow-wrap: anywhere; }
+.ask-goal { margin: 0; font-size: 15px; font-weight: 600; }
+.ask-plan { margin: 0; padding-left: 20px; color: #3A2418; display: flex; flex-direction: column; gap: 2px; }
+.ask-facts { margin: 0; display: grid; grid-template-columns: 96px 1fr; gap: 3px 10px; }
+.ask-facts dt { color: #5E4031; }
+.ask-facts dd { margin: 0; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.ask-from { font-weight: 400; color: #5E4031; }
+.ask-bad { color: #A3301F; }
+.ask-note { margin: 0; color: #3A2418; }
+.ask-box { padding: 10px 12px; background: #E6D3BF; border-radius: 10px; }
+.ask-react { display: flex; align-items: center; gap: 14px; }
+.ask-emoji { font-size: 34px; line-height: 1; }
+.ask-label { font-size: 12.5px; color: #5E4031; }
+.ask-text {
+  width: 100%; padding: 10px 12px; resize: vertical; font-size: 14px; color: var(--ink);
+  background: #FFF8EE; border: 1px solid #A98B76; border-radius: 10px;
+}
+.ask-text:focus { outline: 2px solid #C2602F; outline-offset: 1px; }
+.ask-shot { position: relative; align-self: center; max-width: 100%; border-radius: 10px; overflow: hidden; background: #E6D3BF; }
+.ask-shot img { display: block; max-width: 100%; max-height: 300px; }
+.ask-ring {
+  position: absolute; width: 44px; height: 44px; margin: -22px 0 0 -22px; border-radius: 50%;
+  border: 3px solid #C2602F; box-shadow: 0 0 0 4px rgba(194, 96, 47, 0.25); pointer-events: none;
+}
+.ask-buttons { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+.ask-no, .ask-yes { height: 38px; padding: 0 18px; border-radius: 9px; font-weight: 700; }
+.ask-no { background: transparent; color: var(--ink); border: 2px solid var(--ink); }
+.ask-no:focus-visible, .ask-no:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ask-esc { font-size: 10.5px; font-weight: 400; }
+.ask-yes { background: var(--ink); color: var(--text); border: 0; }
+.ask-yes:disabled { opacity: 0.4; }
+
+/* Corner phone while the AI drives and the dock is collapsed (AP-Parts) */
+.pip {
+  position: fixed; right: 16px; bottom: 42px; z-index: 40; width: 150px; padding: 6px; border-radius: 14px;
+  background: var(--chrome); border: 1px solid var(--accent); box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+}
+.pip-head { display: flex; justify-content: space-between; align-items: center; padding: 2px 4px 6px; font-size: 11px; }
+.pip-open { padding: 0; background: transparent; border: 0; color: var(--accent); font-weight: 600; }
+.pip-stop { padding: 0; background: transparent; border: 0; color: var(--danger); font-weight: 700; font-size: 11px; }
+.pip-screen { aspect-ratio: 1080 / 2400; border-radius: 10px; overflow: hidden; display: flex; background: #090403; }
