@@ -156,7 +156,8 @@ export function Preview({ name, kind, pos, folder }: { name: string; kind: Previ
   }
   const save = () => {
     setSaved('Saving…')
-    tether.previewSave().then((r) => setSaved(r.ok ? 'Saved to PC' : sentence(r.text)), () => setSaved('No phone'))
+    tether.previewSave().then((r) => setSaved(r.ok ? 'Saved to PC' : sentence(r.text)),
+      (err) => setSaved(sentence(String((err as Error)?.message ?? err).replace(/^.*Error: /, ''))))
   }
   // ← → step through photos; in a player they seek, so there PageUp / PageDown step.
   useEffect(() => {

@@ -14,3 +14,9 @@ export function layoutMode(win: { w: number; h: number }, stream: { w: number; h
   const dockWidth = ((win.h - CHROME_H) * s.w) / s.h + 52 // screen + key toolbar and gaps
   return win.w < RAIL + dockWidth + PANE_MIN ? 'compact' : 'split'
 }
+
+// The stream shape the dock and the layout go by: only a live phone in the dock counts. Popped out or no phone,
+// the last size is stale (a landscape one would make a huge empty dock), so they fall back to the default.
+export function dockStream<T>(stream: T | null, ready: boolean, popped: boolean): T | null {
+  return ready && !popped ? stream : null
+}

@@ -3,7 +3,7 @@ import type { AppState } from '../shared/api'
 import { playPhoneAudio } from './audio'
 import { Dock, useRecorder } from './Dock'
 import { Drawer } from './Drawer'
-import { layoutMode } from './layout'
+import { dockStream, layoutMode } from './layout'
 import type { ViewInfo } from './PhoneView'
 import { Apps } from './screens/Apps'
 import { Clipboard } from './screens/Clipboard'
@@ -58,7 +58,8 @@ export function App() {
   const recorder = useRecorder(!!state?.locked, setNote)
   const [win, setWin] = useState({ w: window.innerWidth, h: window.innerHeight })
   const [drawer, setDrawer] = useState(false) // landscape / small window: the page slides over the phone
-  const mode = layoutMode(win, stream, dockOpen)
+  const shape = dockStream(stream, state?.device?.state === 'device', !!state?.phonePopped)
+  const mode = layoutMode(win, shape, dockOpen)
   useEffect(() => { if (mode === 'split') setDrawer(false) }, [mode])
   const now = useNow()
   const open = !!state && !state.locked && state.hasPin && state.engine === 'ready'
@@ -170,7 +171,7 @@ export function App() {
     <Shell state={state} page={page} go={setPage} onRail={mode === 'split' ? undefined : onRail} compact={mode === 'compact'} info={info}
       hint={mode === 'compact' ? 'Widen the window to see pages beside the phone'
         : mode === 'landscape' ? 'Click a page in the rail to slide it over the phone' : HINTS[page]}
-      dock={<Dock state={state} mode={mode} open={dockOpen} setOpen={setDockOpen} visible={visible} info={info} stream={stream} onInfo={onInfo}
+      dock={<Dock state={state} mode={mode} open={dockOpen} setOpen={setDockOpen} visible={visible} info={info} stream={shape} onInfo={onInfo}
         recorder={recorder} notify={setNote} />}
       badges={<>
         {ai && (
