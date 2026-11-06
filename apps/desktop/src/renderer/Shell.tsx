@@ -39,6 +39,17 @@ export function Shell({ state, page, go, onRail, compact, dock, badges, info, hi
   )
 }
 
+// Lock and setup screens have no shell, but the window still needs a title bar to drag (native frame is hidden).
+export function BareTitleBar({ crumb }: { crumb: string }) {
+  return (
+    <header className="titlebar">
+      <Logo size={16} />
+      <span className="titlebar-name">Tether</span>
+      <span className="muted">{crumb}</span>
+    </header>
+  )
+}
+
 function TitleBar({ page, badges }: { page: Page; badges: ReactNode }) {
   return (
     <header className="titlebar">

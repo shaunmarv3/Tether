@@ -1,45 +1,33 @@
 import type { AppState } from '../../shared/api'
+import { sentence } from '../text'
 import { tether } from '../tether'
-import { Steps } from './Connect'
+import { SetupLayout } from './SetupLayout'
 
-const SEGMENTS = 24
-
+// Step 2 of the first run: scrcpy + adb, downloaded once and checked (AP-Setup).
 export function Engine({ state }: { state: AppState }) {
   const busy = state.engine === 'installing'
-  const lit = Math.round(((state.enginePct ?? 0) / 100) * SEGMENTS)
+  const pct = state.enginePct ?? 0
 
   return (
-    <div className="stage">
-      <div className="plate">
-        <header className="plate-head">
-          <span className="wordmark">TETHER</span>
-          {busy ? <span className="tag">WORKING<span className="led amber blink" /></span>
-            : state.known.length ? <span className="tag">SETUP<span className="led red" /></span> : <Steps n={2} />}
-        </header>
-
-        <div className="lcd screen">
-          <div className="screen-row">
-            <span className="screen-title">ENGINE</span>
-            <span className="dim tiny">{busy ? `${state.enginePct ?? 0}%` : 'NOT INSTALLED'}</span>
-          </div>
-          <div className="meter" aria-hidden="true">
-            {Array.from({ length: SEGMENTS }, (_, i) => <span key={i} className={i < lit ? 'on' : ''} />)}
-          </div>
-          <span className="dim tiny">{state.engineProgress ?? 'READY TO DOWNLOAD'}</span>
+    <SetupLayout step={2}>
+      <h1 className="setup-title">Download the engine</h1>
+      <p className="soft setup-lede">Tether uses scrcpy and adb to show and control your phone. They download once, then work offline.</p>
+      <dl className="setup-specs">
+        <dt>Package</dt><dd>scrcpy 5.0 + adb</dd>
+        <dt>Source</dt><dd>Official GitHub release</dd>
+        <dt>Size</dt><dd>11.3 MB, once</dd>
+        <dt>Check</dt><dd>Pinned SHA&#8209;256 before it runs</dd>
+      </dl>
+      {busy && (
+        <div className="setup-progress" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label="Download">
+          <div className="mono muted setup-progress-line"><span>{sentence(state.engineProgress ?? 'Downloading')}</span><span>{pct}%</span></div>
+          <div className="setup-bar"><i style={{ width: `${pct}%` }} /></div>
         </div>
-
-        <dl className="specs">
-          <dt>PACKAGE</dt><dd>scrcpy 5.0 + adb</dd>
-          <dt>SOURCE</dt><dd>Official GitHub release</dd>
-          <dt>SIZE</dt><dd>11.3 MB, once</dd>
-          <dt>CHECK</dt><dd>Pinned SHA&#8209;256 before it runs</dd>
-        </dl>
-
-        <button className="key accent wide" disabled={busy} onClick={() => void tether.installEngine()}>
-          {busy ? 'DOWNLOADING…' : 'DOWNLOAD ENGINE'}
-        </button>
-        <div className="error" role="alert">{state.engineError}</div>
-      </div>
-    </div>
+      )}
+      <button className="btn primary setup-btn" disabled={busy} onClick={() => void tether.installEngine()}>
+        {busy ? 'Downloading…' : 'Download the engine'}
+      </button>
+      {state.engineError && <span className="error-text" role="alert">{sentence(state.engineError)}</span>}
+    </SetupLayout>
   )
 }
