@@ -1,5 +1,6 @@
 import type { AppState, Clip, NotificationItem } from '../../shared/api'
 import type { Page } from '../Shell'
+import { useIcons } from '../icons'
 import { tether } from '../tether'
 import { EmptyState, Kbd, Tile, TONES } from '../ui'
 import { useNow, wipeLeft } from './Clipboard'
@@ -43,6 +44,7 @@ export function Home({ state, go }: { state: AppState; go: (p: Page) => void }) 
   const pct = status?.batteryPct ?? null
   const free = status?.storageTotalGb != null && status.storageUsedGb != null ? Math.max(0, status.storageTotalGb - status.storageUsedGb) : null
   const ring = 2 * Math.PI * 23
+  const icons = useIcons(state.pins.map((p) => p.pkg), ready)
 
   return (
     <div className="home">
@@ -80,7 +82,7 @@ export function Home({ state, go }: { state: AppState; go: (p: Page) => void }) 
               return (
                 <button key={p.pkg} className="home-app" disabled={!ready} title={open ? `${p.name} · open` : p.name}
                   onClick={() => void tether.openApp(p.pkg, p.name)}>
-                  <Tile name={p.name} tone={TONES[i % TONES.length]} size={54} radius={16} font={24} className="home-tile" />
+                  <Tile name={p.name} tone={TONES[i % TONES.length]} icon={icons.get(p.pkg)} size={54} radius={16} font={24} className="home-tile" />
                   <span className="ellipsis home-app-name">{p.name}</span>
                   {open && <span className="home-open-dot" aria-label="open" />}
                 </button>

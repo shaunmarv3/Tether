@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { PhoneApp } from '@tether/core'
 import { DEFAULT_APP_OPTIONS, type AppOptions, type AppState, type Shape } from '../../shared/api'
 import { sentence } from '../text'
+import { useIcons } from '../icons'
 import { tether } from '../tether'
 import { EmptyState, Segmented, Switch, Tile, toneOf } from '../ui'
 
@@ -41,6 +42,7 @@ export function Apps({ state }: { state: AppState }) {
     (!q || a.name.toLowerCase().includes(q) || a.pkg.includes(q)))
   const app = apps?.find((a) => a.pkg === selected) ?? shown[0] ?? null
   const openCount = (apps ?? []).filter((a) => isOpen(a.pkg)).length
+  const icons = useIcons((apps ?? []).map((a) => a.pkg), !!serial)
 
   return (
     <div className="page">
@@ -64,7 +66,7 @@ export function Apps({ state }: { state: AppState }) {
                   {shown.map((a) => (
                     <button key={a.pkg} className="apps-tile" aria-pressed={app?.pkg === a.pkg} title={a.name}
                       onClick={() => setSelected(a.pkg)} onDoubleClick={() => void tether.openApp(a.pkg, a.name)}>
-                      <Tile name={a.name} tone={toneOf(a.pkg, state.pins)} />
+                      <Tile name={a.name} tone={toneOf(a.pkg, state.pins)} icon={icons.get(a.pkg)} />
                       <span className="ellipsis apps-name">{a.name}</span>
                       {isOpen(a.pkg) && <span className="apps-dot" aria-label="open" />}
                     </button>
@@ -72,14 +74,14 @@ export function Apps({ state }: { state: AppState }) {
                 </div>
               ) : <EmptyState title={filter === 'open' ? 'No app windows open' : filter === 'pinned' ? 'Nothing pinned yet' : 'No app matches'} />}
             </section>
-            {app && <AppPanel app={app} state={state} open={isOpen(app.pkg)} pinned={isPinned(app.pkg)} />}
+            {app && <AppPanel app={app} state={state} open={isOpen(app.pkg)} pinned={isPinned(app.pkg)} icon={icons.get(app.pkg)} />}
           </div>
         )}
     </div>
   )
 }
 
-function AppPanel({ app, state, open, pinned }: { app: PhoneApp; state: AppState; open: boolean; pinned: boolean }) {
+function AppPanel({ app, state, open, pinned, icon }: { app: PhoneApp; state: AppState; open: boolean; pinned: boolean; icon?: string }) {
   const opts = state.appOptions[app.pkg] ?? DEFAULT_APP_OPTIONS
   const set = (patch: Partial<AppOptions>) => void tether.setAppOptions(app.pkg, { ...opts, ...patch })
   const full = !pinned && state.pins.length >= 8
@@ -87,7 +89,7 @@ function AppPanel({ app, state, open, pinned }: { app: PhoneApp; state: AppState
   return (
     <aside className="inspector" aria-labelledby="sel-h">
       <div className="apps-head">
-        <Tile name={app.name} tone={toneOf(app.pkg, state.pins)} size={48} radius={14} font={22} />
+        <Tile name={app.name} tone={toneOf(app.pkg, state.pins)} icon={icon} size={48} radius={14} font={22} />
         <div className="grow">
           <h2 id="sel-h" className="inspector-title ellipsis">{app.name}</h2>
           <div className="mono apps-pkg ellipsis">{app.pkg}</div>

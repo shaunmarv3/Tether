@@ -21,9 +21,9 @@ const out = (blocks: string[]) => blocks.join('\n@@\n').replace(/\n/g, '\r\n') +
 
 describe('parseStatus', () => {
   it('reads name, android, OEM OS, battery and storage (real CRLF output)', () => {
-    expect(parseStatus(out(['CMF by Nothing Phone 1', 'A015', '16', '4.1', BATTERY, DF, '604800000']))).toEqual({
+    expect(parseStatus(out(['CMF by Nothing Phone 1', 'A015', '16', '4.1', BATTERY, DF, '604800000', '0']))).toEqual({
       model: 'CMF by Nothing Phone 1', android: '16', nothingOs: '4.1', batteryPct: 48, storageUsedGb: 86, storageTotalGb: 108,
-      adbTimeoutMs: 604800000,
+      adbTimeoutMs: 604800000, wirelessDebugging: false,
     })
   })
 
@@ -34,8 +34,13 @@ describe('parseStatus', () => {
 
   it('nulls missing battery/df blocks', () => {
     expect(parseStatus(out(['', 'X1', '16', '', '', '']))).toEqual({
-      model: 'X1', android: '16', nothingOs: null, batteryPct: null, storageUsedGb: null, storageTotalGb: null, adbTimeoutMs: null,
+      model: 'X1', android: '16', nothingOs: null, batteryPct: null, storageUsedGb: null, storageTotalGb: null, adbTimeoutMs: null, wirelessDebugging: null,
     })
+  })
+
+  it('reads whether Wireless debugging is on', () => {
+    expect(parseStatus(out(['', 'X1', '16', '', BATTERY, DF, '0', '1'])).wirelessDebugging).toBe(true)
+    expect(parseStatus(out(['', 'X1', '16', '', BATTERY, DF, '0', 'null'])).wirelessDebugging).toBeNull()
   })
 
   // "Disable adb authorization timeout" ON writes 0; never touched = null = Android's default (7 days).

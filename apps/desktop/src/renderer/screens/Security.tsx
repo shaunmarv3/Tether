@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import type { Activity, AppState, IdleMinutes } from '../../shared/api'
 import { sentence } from '../text'
 import { tether } from '../tether'
-import { Segmented, Switch } from '../ui'
+import { ICON, Icon, Segmented, Switch } from '../ui'
 import { MIN_PASSWORD } from './Lock'
 import { TrustSection } from './Trust'
 
@@ -92,6 +92,37 @@ function PasswordForm({ weak, off }: { weak: boolean; off: boolean }) {
   )
 }
 
+// Left column, under the password: a quick read of the settings that matter, from what Tether already knows.
+function Checkup({ state }: { state: AppState }) {
+  const wifi = state.device?.state === 'device' ? state.status?.wirelessDebugging ?? null : null
+  const rows: [boolean, string, string][] = [
+    state.passwordOff ? [false, 'Password is off', 'Anyone at this PC can open Tether. Turn on "Ask for it" above.']
+      : [true, 'Password is on', 'Tether asks for it every time it opens.'],
+    state.idleMinutes === 0 ? [false, 'Auto-lock is off', 'Tether stays open when you walk away. Pick a time under App lock.']
+      : [true, `Auto-lock after ${state.idleMinutes} min`, 'Phone windows close and the AI stops when you step away.'],
+    state.unknown.length ? [false, `${state.unknown.length} unknown device plugged in`, 'Trust it only if it is yours, or unplug it.']
+      : [true, 'No unknown devices', 'Only phones you trusted can be shown or controlled.'],
+    ...(wifi === null ? [] : [wifi ? [false, 'Wireless debugging is on', 'The phone can be reached over Wi-Fi. Turn it off in Developer options.']
+      : [true, 'Wireless debugging is off', 'Only the USB cable reaches your phone.']] as [boolean, string, string][]),
+    state.pilot.askSends ? [true, 'The AI asks before every send', 'You see who and what before anything goes out.']
+      : [false, 'The AI sends without asking', 'Only to the planned chat. Turn "Ask before every send" back on in AI Pilot.'],
+  ]
+  const good = rows.filter(([ok]) => ok).length
+  return (
+    <section className="sec-section" aria-labelledby="sc-check">
+      <div className="sec-pw-head"><h2 id="sc-check">Security checkup</h2><span className="muted">{good} of {rows.length} look good</span></div>
+      <ul className="check-list">
+        {rows.map(([ok, title, note]) => (
+          <li key={title} className={ok ? 'ok' : 'look'}>
+            <span className="check-mark" aria-label={ok ? 'Good' : 'Needs a look'}><Icon d={ok ? ICON.check : ICON.warn} size={15} width={2} /></span>
+            <span><span className="check-title">{title}</span><span className="check-note">{note}</span></span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
 export function Security({ state, trustFocus = false, trustShown = () => {} }: { state: AppState; trustFocus?: boolean; trustShown?: () => void }) {
   const [activity, setActivity] = useState<Activity[] | null>(null)
   const [confirming, setConfirming] = useState<string | null>(null)
@@ -135,6 +166,7 @@ export function Security({ state, trustFocus = false, trustShown = () => {} }: {
             <button className="btn danger big" onClick={() => void tether.lockdown()}>Lockdown now</button>
           </section>
           <PasswordForm weak={state.weakPassword} off={state.passwordOff} />
+          <Checkup state={state} />
         </div>
 
         <div className="sec-col">

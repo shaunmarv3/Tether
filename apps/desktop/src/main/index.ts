@@ -1,12 +1,12 @@
 import {
   app, BrowserWindow, clipboard, dialog, globalShortcut, Menu, nativeImage, Notification, powerMonitor, protocol, screen, shell, Tray,
 } from 'electron'
-import { createReadStream, existsSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { createReadStream, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { basename, extname, isAbsolute, join } from 'node:path'
 import { Readable } from 'node:stream'
 import {
   clearNotification, countPlaces, createLog, DeviceTracker, findEngine, getStatus, hashPin, identify, installApk, installEngine, listApps, listDir,
-  lockdown, makeDir, setKeepTrust, newestScreenshot, PhoneStream, run, pickPhone, PinGate, pruneLogs, pullFiles, pushFiles, readActivity, readNotifications, removeFiles, removeStaleForwards, screenshot, sdCards, ShotTracker,
+  lockdown, makeDir, readIcons, setKeepTrust, newestScreenshot, PhoneStream, run, pickPhone, PinGate, pruneLogs, pullFiles, pushFiles, readActivity, readNotifications, removeFiles, removeStaleForwards, screenshot, sdCards, ShotTracker,
   type Device, type EnginePaths, type PhoneApp, type PhoneLink, type PhoneNotification,
 } from '@tether/core'
 import { DEFAULT_APP_OPTIONS, LOCKED_PILOT, type AppOptions, type AppState, type Bounds, type FileOp } from '../shared/api'
@@ -616,6 +616,33 @@ async function stepPreview(w: BrowserWindow, delta: 1 | -1): Promise<void> {
   showPreview(w, p)
 }
 
+// App icons, cached as PNGs in %LOCALAPPDATA%Tethericons (an empty .none file = the phone has no icon for it).
+// Missing ones come from the phone in one helper run at a time.
+const iconDir = () => join(paths.root, 'icons')
+const iconFile = (pkg: string, ext: 'png' | 'none') => join(iconDir(), `${pkg}.${ext}`)
+let iconJob: Promise<void> = Promise.resolve()
+async function appIcons(pkgs: string[]): Promise<Record<string, string>> {
+  const missing = () => pkgs.filter((p) => !existsSync(iconFile(p, 'png')) && !existsSync(iconFile(p, 'none')))
+  const d = readyDevice()
+  if (missing().length && engine && d && !state.locked) {
+    const adb = engine.adb
+    iconJob = iconJob.then(async () => {
+      const want = missing()
+      if (!want.length) return
+      mkdirSync(iconDir(), { recursive: true })
+      const got = await readIcons(adb, d.serial, resource('tether-icons.jar'), want)
+      for (const p of want) {
+        const png = got[p]
+        if (png) writeFileSync(iconFile(p, 'png'), png)
+        else if (p in got) writeFileSync(iconFile(p, 'none'), '')
+      }
+    }).catch((err) => log(`icons: ${(err as Error).message}`))
+    await iconJob
+  }
+  return Object.fromEntries(pkgs.filter((p) => existsSync(iconFile(p, 'png')))
+    .map((p) => [p, `data:image/png;base64,${readFileSync(iconFile(p, 'png')).toString('base64')}`]))
+}
+
 function notifySaved(body: string, file: string): void {
   const n = new Notification({ title: 'Tether', body, icon })
   n.on('click', () => shell.showItemInFolder(file))
@@ -768,6 +795,7 @@ else {
         recompute()
       },
       lockdown: doLockdown,
+      appIcons,
       keepTrust: async (forever) => {
         const { adb, serial } = phone()
         await setKeepTrust(adb, serial, forever)

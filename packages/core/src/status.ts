@@ -5,6 +5,7 @@ import { run } from './run'
 export interface DeviceStatus {
   model: string; android: string; nothingOs: string | null; batteryPct: number | null
   storageUsedGb: number | null; storageTotalGb: number | null; latencyMs: number
+  wirelessDebugging: boolean | null // Developer options > Wireless debugging (null = can't tell)
   adbTimeoutMs: number | null // Android 11+ forgets this PC after this long unused; 0 = never, null = default (7 days)
 }
 
@@ -12,10 +13,10 @@ export interface DeviceStatus {
 // name (model is just a code like A015). /data may report its mount as /data/user/0.
 export const STATUS_SHELL = 'settings get global device_name; echo @@; getprop ro.product.model; echo @@; '
   + 'getprop ro.build.version.release; echo @@; getprop ro.nothing.version.id; echo @@; dumpsys battery; echo @@; df -k /data; '
-  + 'echo @@; settings get global adb_allowed_connection_time'
+  + 'echo @@; settings get global adb_allowed_connection_time; echo @@; settings get global adb_wifi_enabled'
 
 export function parseStatus(out: string): Omit<DeviceStatus, 'latencyMs'> {
-  const [name = '', model = '', android = '', nothingOs = '', battery = '', df = '', timeout = ''] =
+  const [name = '', model = '', android = '', nothingOs = '', battery = '', df = '', timeout = '', wifi = ''] =
     out.replace(/\r/g, '').split(/^@@$/m).map((b) => b.trim())
   const level = /^\s*level:\s*(\d+)/m.exec(battery)
   const cols = df.split('\n').slice(1).pop()?.trim().split(/\s+/)
@@ -27,6 +28,7 @@ export function parseStatus(out: string): Omit<DeviceStatus, 'latencyMs'> {
     batteryPct: level ? Number(level[1]) : null,
     storageUsedGb: gb(cols?.[2]),
     storageTotalGb: gb(cols?.[1]),
+    wirelessDebugging: wifi === '1' ? true : wifi === '0' ? false : null,
     adbTimeoutMs: /^\d+$/.test(timeout) ? Number(timeout) : null,
   }
 }

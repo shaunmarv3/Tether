@@ -121,3 +121,4 @@ button:disabled { cursor: default; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
 }
+.tile-icon { flex: none; display: block; object-fit: contain; }

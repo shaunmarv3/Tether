@@ -88,6 +88,7 @@ export interface TetherApi {
   forget(serialNo: string): Promise<void>
   lockdown(): Promise<void>
   lockNow(): Promise<void> // lock by hand (rail button); not Lockdown
+  appIcons(pkgs: string[]): Promise<Record<string, string>> // data: URLs of the apps' real icons (cached on the PC)
   keepTrust(forever: boolean): Promise<void> // the phone's "Disable adb authorization timeout"
   popOutPhone(): Promise<void> // the phone screen in its own window (focuses it if open)
   bringBackPhone(): Promise<void> // closes that window: the phone goes back to the dock

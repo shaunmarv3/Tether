@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { AppState, NotificationItem } from '../../shared/api'
 import { sentence } from '../text'
+import { useIcons } from '../icons'
 import { tether } from '../tether'
 import { EmptyState, Tile, toneOf } from '../ui'
 import { ago, useNow } from './Clipboard'
@@ -35,6 +36,7 @@ export function Notifications({ state }: { state: AppState }) {
   const ready = state.device?.state === 'device'
   const { list, setList, error, setError } = useNotifications(state)
   const [picked, setPicked] = useState<string | null>(null)
+  const icons = useIcons([...new Set((list ?? []).map((n) => n.pkg))], ready)
 
   function clear(key: string) {
     setList((l) => l?.filter((n) => n.key !== key) ?? null)
@@ -60,7 +62,7 @@ export function Notifications({ state }: { state: AppState }) {
             <div className="row-list">
               {list?.map((n) => (
                 <div key={n.key} className="row notif-row" aria-selected={n.key === picked}>
-                  <Tile name={n.app} tone={toneOf(n.pkg, state.pins)} size={32} radius={10} font={14} />
+                  <Tile name={n.app} tone={toneOf(n.pkg, state.pins)} icon={icons.get(n.pkg)} size={32} radius={10} font={14} />
                   <button className="notif-open grow" aria-pressed={n.key === picked} onClick={() => setPicked(n.key)}>
                     <span className="notif-meta"><span className="notif-app">{n.app}</span><span className="mono muted">{ago(when(n), now)}</span></span>
                     {n.title && <span className="notif-title">{n.title}</span>}

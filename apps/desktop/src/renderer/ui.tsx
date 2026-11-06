@@ -111,9 +111,11 @@ export function toneOf(pkg: string, pins: { pkg: string }[]): [string, string] {
   return TONES[h % TONES.length]
 }
 
-export function Tile({ name, tone, size = 42, radius = 13, font = 18, className }: {
-  name: string; tone: [string, string]; size?: number; radius?: number; font?: number; className?: string
+// icon = the app's real icon (icons.ts); without one, the letter on a warm tone.
+export function Tile({ name, tone, icon, size = 42, radius = 13, font = 18, className }: {
+  name: string; tone: [string, string]; icon?: string; size?: number; radius?: number; font?: number; className?: string
 }) {
+  if (icon) return <img className={`tile-icon${className ? ` ${className}` : ''}`} src={icon} width={size} height={size} alt="" draggable={false} />
   return (
     <span className={`tile${className ? ` ${className}` : ''}`} aria-hidden="true"
       style={{ width: size, height: size, borderRadius: radius, fontSize: font, background: tone[0], color: tone[1] }}>

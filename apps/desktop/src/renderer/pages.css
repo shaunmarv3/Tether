@@ -369,3 +369,14 @@
 .trust-steps b { color: var(--text); font-weight: 600; }
 .trust-btn { align-self: flex-start; }
 .trust-undo { align-self: flex-start; font-size: 12.5px; }
+.tile-icon.home-tile { box-shadow: none; filter: drop-shadow(0 6px 8px rgba(0, 0, 0, 0.35)); }
+
+/* Security checkup */
+.check-list { margin: 4px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; }
+.check-list li { display: flex; gap: 12px; align-items: flex-start; padding: 9px 0; border-bottom: 1px solid var(--line-soft); }
+.check-list li:last-child { border-bottom: 0; }
+.check-mark { width: 24px; height: 24px; flex: none; border-radius: 50%; display: grid; place-items: center; }
+.check-list .ok .check-mark { background: var(--selected); color: var(--accent); }
+.check-list .look .check-mark { background: var(--danger-bg); color: var(--danger); }
+.check-title { display: block; font-weight: 600; }
+.check-note { display: block; font-size: 12.5px; color: var(--muted); }

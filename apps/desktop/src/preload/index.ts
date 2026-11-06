@@ -21,6 +21,7 @@ const api: TetherApi = {
   lockdown: () => ipcRenderer.invoke('tether:lockdown'),
   lockNow: () => ipcRenderer.invoke('tether:lockNow'),
   popOutPhone: () => ipcRenderer.invoke('tether:popOutPhone'),
+  appIcons: (pkgs) => ipcRenderer.invoke('tether:appIcons', pkgs),
   keepTrust: (forever) => ipcRenderer.invoke('tether:keepTrust', forever),
   bringBackPhone: () => ipcRenderer.invoke('tether:bringBackPhone'),
   setIdle: (minutes) => ipcRenderer.invoke('tether:setIdle', minutes),
