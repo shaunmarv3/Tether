@@ -11,7 +11,7 @@ export function AppWindow({ pkg, name, free }: { pkg: string; name: string; free
         <span className="app-bar-name">{name}</span>
         <button className="bar-key" onClick={() => pressKey(view, NAV.BACK)}>BACK</button>
       </div>
-      <PhoneView view={view} flex={free} bare />
+      <PhoneView view={view} flex={free} />
     </div>
   )
 }

@@ -95,3 +95,39 @@
 }
 .drop-title { font-size: 24px; font-weight: 500; letter-spacing: -0.02em; }
 .drop-box .mono { font-size: 12px; }
+
+/* Phone dock (AP-Home): the screen at full height, the key toolbar beside it */
+.dock {
+  flex: none; display: flex; gap: 8px; padding: 8px 8px 8px 10px; min-width: 0;
+  background: var(--dock); border-right: 1px solid var(--line);
+}
+.dock-screen {
+  position: relative; flex: none; height: 100%; max-width: 100%; display: flex; overflow: hidden;
+  border-radius: 18px; background: #090403;
+}
+.dock-screen.driving { outline: 3px solid var(--accent); outline-offset: 2px; }
+.key-toolbar {
+  align-self: center; flex: none; display: flex; flex-direction: column; gap: 3px; padding: 4px;
+  background: var(--raised); border-radius: 12px;
+}
+.key-btn {
+  width: 36px; height: 36px; padding: 0; display: grid; place-items: center;
+  background: transparent; border: 0; border-radius: 8px; color: var(--text);
+}
+.key-btn.gap { margin-top: 10px; }
+.key-btn:hover:not(:disabled) { background: var(--selected); }
+.key-btn.on { color: var(--danger); background: var(--danger-bg); }
+.key-btn:disabled { color: #7A5E4E; }
+.dock.collapsed { flex: 0 0 52px; flex-direction: column; align-items: center; gap: 8px; padding: 10px 0; background: #1E0D08; }
+.dock-expand {
+  width: 36px; height: 64px; padding: 0; display: grid; place-items: center;
+  background: #090403; border: 1px solid var(--control-line); border-radius: 9px; color: var(--muted);
+}
+.dock-expand:hover { color: var(--text); border-color: var(--control-line-2); }
+.dock.collapsed .status-dot { margin: 0; }
+
+/* A live phone screen (dock, pop-out, app windows): letterboxed canvas + its states */
+.pv { position: relative; flex: 1; min-width: 0; min-height: 0; display: flex; }
+.pv-canvas { display: block; width: 100%; height: 100%; object-fit: contain; outline: none; cursor: default; touch-action: none; }
+.pv-msg { position: absolute; inset: 0; display: flex; background: #090403; }
+.dock-screen > .empty { color: var(--text); }

@@ -38,7 +38,7 @@ const ICONS = {
   off: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z" /></svg>,
 }
 
-export function Home({ state, go, record }: { state: AppState; go: (p: Page) => void; record: () => void }) {
+export function Home({ state, go }: { state: AppState; go: (p: Page) => void }) {
   const now = useNow()
   const [quick, setQuick] = useState<{ text: string; error: boolean } | null>(null)
   useEffect(() => {
@@ -65,9 +65,6 @@ export function Home({ state, go, record }: { state: AppState; go: (p: Page) => 
           <span className="mono tiny muted">{today()}</span>
           <h1 className="headline">Your phone is <span className="accent-text">on the line.</span></h1>
         </div>
-        <button className="key accent tall" disabled={!ready} onClick={() => go('mirror')}>
-          <span className={`led ${state.openViews.includes('mirror') ? 'on' : ''}`} />MIRROR
-        </button>
       </header>
 
       <div className="status-row">
@@ -100,7 +97,6 @@ export function Home({ state, go, record }: { state: AppState; go: (p: Page) => 
 
       <section className="quick" aria-label="Quick actions">
         <QuickKey icon={ICONS.shot} label="SCREENSHOT" disabled={!ready} onClick={() => act(tether.screenshot(), 'SCREENSHOT SAVED')} />
-        <QuickKey icon={ICONS.rec} label="RECORD" disabled={!ready} onClick={record} />
         <QuickKey icon={ICONS.paste} label="PASTE TO PHONE" disabled={!ready} onClick={() => act(tether.pasteToPhone(), 'PASTED ON THE PHONE')} />
         <QuickKey icon={ICONS.off} label="SCREEN OFF" disabled={!ready}
           onClick={() => act(tether.screenOff(), 'SCREEN OFF')} />

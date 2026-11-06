@@ -5,7 +5,7 @@ export type EngineState = 'missing' | 'installing' | 'ready'
 export type IdleMinutes = 0 | 5 | 10 | 30
 export interface Activity { time: string; text: string }
 
-// A view = one live phone screen: the Mirror page, or one app window.
+// A view = one live phone screen: the main window's dock (or its pop-out), or one app window.
 export type ViewId = 'mirror' | `app:${string}`
 export type VideoMsg =
   | { kind: 'session'; width: number; height: number }
@@ -96,7 +96,8 @@ export interface TetherApi {
   onVideo(cb: (view: ViewId, m: VideoMsg) => void): () => void
   onAudio(cb: (pcm: Uint8Array) => void): () => void
   input(view: ViewId, e: InputEvent): void
-  onGo(cb: (page: 'home' | 'mirror') => void): () => void
+  onGo(cb: (where: 'dock') => void): () => void // tray "Mirror": open the dock
+  onVisible(cb: (visible: boolean) => void): () => void // main window hidden/minimised (false) or shown (true)
   // apps + layouts
   listApps(): Promise<PhoneApp[]>
   openApp(pkg: string, name: string): Promise<void>

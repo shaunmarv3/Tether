@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type WheelEvent } from 'react'
 import type { InputEvent, ViewId } from '../shared/api'
+import { sentence } from './text'
 import { tether } from './tether'
+import { EmptyState } from './ui'
 
 export interface ViewInfo { width: number; height: number; fps: number }
 
@@ -23,9 +25,7 @@ const concat = (a: Uint8Array, b: Uint8Array) => {
   return out
 }
 
-export function PhoneView({ view, keys, flex, bare, onInfo }: {
-  view: ViewId; keys?: boolean; flex?: boolean; bare?: boolean; onInfo?: (info: ViewInfo | null) => void
-}) {
+export function PhoneView({ view, flex, onInfo }: { view: ViewId; flex?: boolean; onInfo?: (info: ViewInfo | null) => void }) {
   const canvas = useRef<HTMLCanvasElement>(null)
   const box = useRef<HTMLDivElement>(null)
   const size = useRef<{ w: number; h: number } | null>(null) // current session size: touches are sent in these pixels
@@ -170,27 +170,16 @@ export function PhoneView({ view, keys, flex, bare, onInfo }: {
   }
 
   return (
-    <div className={`phone-view ${bare ? 'bare' : ''}`}>
-      <div className="bezel" ref={box}>
-        <canvas ref={canvas} className="phone-canvas" tabIndex={0} aria-label="Phone screen"
-          onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}
-          onWheel={onWheel} onKeyDown={onKey(0)} onKeyUp={onKey(1)} onContextMenu={(e) => e.preventDefault()} />
-        {!live && (
-          <div className="screen-msg mono">
-            {closed === null ? <span className="blink">CONNECTING…</span>
-              : <>
-                <span>{closed ? `PHONE VIEW CLOSED · ${closed.replace(/^(WARN|ERROR|INFO):\s*/, '').toUpperCase()}` : 'PHONE VIEW CLOSED'}</span>
-                <button className="small-key" onClick={() => setAttempt((n) => n + 1)}>RECONNECT</button>
-              </>}
-          </div>
-        )}
-      </div>
-      {keys && (
-        <div className="phone-keys" role="group" aria-label="Phone keys">
-          {(Object.keys(NAV) as (keyof typeof NAV)[]).map((k) => (
-            <button key={k} className="key" onClick={() => pressKey(view, NAV[k])}>{k}</button>
-          ))}
-          <button className="key" onClick={() => tether.input(view, { t: 'rotate' })}>ROTATE</button>
+    <div className="pv" ref={box}>
+      <canvas ref={canvas} className="pv-canvas" tabIndex={0} aria-label="Phone screen"
+        onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}
+        onWheel={onWheel} onKeyDown={onKey(0)} onKeyUp={onKey(1)} onContextMenu={(e) => e.preventDefault()} />
+      {!live && (
+        <div className="pv-msg">
+          {closed === null ? <EmptyState title="Connecting…" kind="wait" />
+            : <EmptyState title="Phone view closed" note={closed ? sentence(closed.replace(/^(WARN|ERROR|INFO):s*/, '')) : undefined}>
+              <button className="btn mid" onClick={() => setAttempt((n) => n + 1)}>Reconnect</button>
+            </EmptyState>}
         </div>
       )}
     </div>

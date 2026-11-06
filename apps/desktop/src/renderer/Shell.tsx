@@ -7,14 +7,13 @@ import { tether } from './tether'
 import { ICON, Icon } from './ui'
 
 export type Page = 'home' | 'apps' | 'files' | 'clipboard' | 'notifications' | 'pilot' | 'layouts' | 'security'
-  | 'mirror' // temporary: the old Mirror page, until the dock replaces it (Task 4)
 
 export const PAGES: [Page, string, string][] = [
   ['home', 'Home', ICON.home], ['apps', 'Apps', ICON.apps], ['files', 'Files', ICON.files], ['clipboard', 'Clipboard', ICON.clip],
   ['notifications', 'Notifications', ICON.bell], ['pilot', 'AI Pilot', ICON.pilot], ['layouts', 'Layouts', ICON.layouts],
   ['security', 'Security', ICON.shield],
 ]
-export const pageName = (p: Page) => PAGES.find(([id]) => id === p)?.[1] ?? 'Mirror'
+export const pageName = (p: Page) => PAGES.find(([id]) => id === p)![1]
 
 export function aiState(state: AppState): 'idle' | 'waiting for you' | 'driving' {
   const ai = state.pilot

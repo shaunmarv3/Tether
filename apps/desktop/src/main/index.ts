@@ -275,11 +275,11 @@ function startTracking(p: EnginePaths): void {
   timers.push(setInterval(() => { readIds(); void refreshStatus() }, 10_000))
 }
 
-// The phone screen lives on the Mirror page of the main window.
+// The phone screen lives in the main window's dock: show the window with the dock open.
 function openMirror(): void {
   if (!readyDevice() || state.locked) return
   showWindow()
-  win?.webContents.send('tether:go', 'mirror')
+  win?.webContents.send('tether:go', 'dock')
 }
 
 function lock(reason: string): void {
@@ -612,8 +612,13 @@ function createWindow(): BrowserWindow {
     if (quitting) return
     e.preventDefault()
     w.hide()
-    w.webContents.send('tether:go', 'home') // leaving the Mirror page ends its stream
   })
+  // The dock streams only while the window can be seen: hidden or minimised ends the stream (and a recording).
+  const visible = (v: boolean) => () => w.webContents.send('tether:visible', v)
+  w.on('hide', visible(false))
+  w.on('minimize', visible(false))
+  w.on('show', visible(true))
+  w.on('restore', visible(true))
   w.once('ready-to-show', () => w.show())
   loadRenderer(w)
   return w
