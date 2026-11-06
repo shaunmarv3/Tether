@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import type { AppState } from '../shared/api'
 import { phoneAudioStream } from './audio'
 import { NAV, PhoneView, pressKey, type ViewInfo } from './PhoneView'
 import { errText } from './screens/Files'
+import type { LayoutMode } from './layout'
 import type { Toast } from './Shell'
 import { sentence } from './text'
 import { tether } from './tether'
@@ -74,8 +75,8 @@ function phoneState(state: AppState): { title: string; note: string; kind: 'phon
 }
 
 // The phone at full window height, with its key toolbar (spec §6). Collapsed = a 52 px strip.
-export function Dock({ state, open, setOpen, visible, info, stream, onInfo, recorder, notify }: {
-  state: AppState; open: boolean; setOpen: (open: boolean) => void; visible: boolean; info: ViewInfo | null
+export function Dock({ state, mode, open, setOpen, visible, info, stream, onInfo, recorder, notify }: {
+  state: AppState; mode: LayoutMode; open: boolean; setOpen: (open: boolean) => void; visible: boolean; info: ViewInfo | null
   stream: { w: number; h: number } | null // last known stream size: keeps the shape while (re)connecting
   onInfo: (info: ViewInfo | null) => void; recorder: Recorder; notify: (t: Toast) => void
 }) {
@@ -117,11 +118,13 @@ export function Dock({ state, open, setOpen, visible, info, stream, onInfo, reco
     ['Paste to phone', ICON.paste, () => act(tether.pasteToPhone(), { text: 'Pasted on the phone', kind: 'ok' })],
     ['Screen off', ICON.moon, () => act(tether.screenOff(), { text: 'Screen off', kind: 'ok' })],
   ]
-  const ratio = stream ? `${stream.w} / ${stream.h}` : '1080 / 2400'
+  const s = stream ?? { w: 1080, h: 2400 }
+  const shape = { aspectRatio: `${s.w} / ${s.h}`, '--ar': s.w / s.h } as CSSProperties
 
   return (
-    <section className="dock" aria-label="Phone screen">
-      <div ref={screen} className={`dock-screen${driving ? ' driving' : ''}`} style={{ aspectRatio: ratio }}>
+    <section className={`dock${mode === 'landscape' ? ' wide' : mode === 'compact' ? ' narrow' : ''}`}
+      aria-label={mode === 'landscape' ? 'Phone screen, landscape' : 'Phone screen'}>
+      <div ref={screen} className={`dock-screen${driving ? ' driving' : ''}`} style={shape}>
         {ready
           ? visible && <PhoneView view="mirror" onInfo={onInfo} />
           : empty && <EmptyState title={empty.title} note={empty.note} kind={empty.kind} />}

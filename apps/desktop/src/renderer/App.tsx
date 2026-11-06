@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import type { AppState } from '../shared/api'
 import { playPhoneAudio } from './audio'
 import { Dock, useRecorder } from './Dock'
+import { Drawer } from './Drawer'
+import { layoutMode } from './layout'
 import type { ViewInfo } from './PhoneView'
 import { Apps } from './screens/Apps'
 import { Clipboard } from './screens/Clipboard'
@@ -15,7 +17,7 @@ import { Notifications } from './screens/Notifications'
 import { Pilot, PilotAsk, PilotPip } from './screens/Pilot'
 import { Security } from './screens/Security'
 import { useNow } from './screens/Clipboard'
-import { Banners, DropOverlay, fileToast, Shell, Toasts, type Page, type Toast } from './Shell'
+import { Banners, DropOverlay, fileToast, pageName, Shell, Toasts, type Page, type Toast } from './Shell'
 import { tether } from './tether'
 
 const DOWNLOAD = '/sdcard/Download/'
@@ -49,6 +51,10 @@ export function App() {
     try { localStorage.setItem(dockKey(p), on ? '1' : '0') } catch { /* this session only */ }
   }
   const recorder = useRecorder(!!state?.locked, setNote)
+  const [win, setWin] = useState({ w: window.innerWidth, h: window.innerHeight })
+  const [drawer, setDrawer] = useState(false) // landscape / small window: the page slides over the phone
+  const mode = layoutMode(win, stream, dockOpen)
+  useEffect(() => { if (mode === 'split') setDrawer(false) }, [mode])
   const now = useNow()
   const open = !!state && !state.locked && state.hasPin && state.engine === 'ready'
   const where = useRef({ page, filesDir })
@@ -62,6 +68,12 @@ export function App() {
     const offVisible = tether.onVisible(setVisible)
     void tether.getState().then(setState)
     return () => { off(); offGo(); offVisible() }
+  }, [])
+
+  useEffect(() => {
+    const resize = () => setWin({ w: window.innerWidth, h: window.innerHeight })
+    window.addEventListener('resize', resize)
+    return () => window.removeEventListener('resize', resize)
   }, [])
 
   useEffect(() => {
@@ -127,9 +139,32 @@ export function App() {
   if (state.engine !== 'ready') return <Engine state={state} />
   if (!state.known.length && !skipped) return <Connect state={state} skip={() => setSkipped(true)} />
   const ready = state.device?.state === 'device'
+  const content = (
+    <>
+      <Banners state={state} ignored={ignored} ignore={(sn) => setIgnored((p) => [...p, sn])} go={setPage} />
+      <div className="pane-content">
+        {page === 'home' && <Home state={state} go={setPage} />}
+        {page === 'apps' && <Apps state={state} />}
+        {page === 'files' && <Files state={state} dir={filesDir} setDir={(d) => setFilesDir(d.endsWith('/') ? d : `${d}/`)} />}
+        {page === 'clipboard' && <Clipboard state={state} />}
+        {page === 'notifications' && <Notifications state={state} />}
+        {page === 'pilot' && <Pilot state={state} />}
+        {page === 'layouts' && <Layouts state={state} />}
+        {page === 'security' && <Security state={state} />}
+      </div>
+    </>
+  )
+  const toasts = (
+    <Toasts toast={note ?? (toast && page !== 'files' ? fileToast(toast) : null)} apks={apks} installReady={ready && !state.fileOp.busy}
+      install={() => { void tether.installApk(apks[0]); setApks((a) => a.slice(1)) }} cancel={() => setApks((a) => a.slice(1))} />
+  )
+  // In landscape / small windows the rail opens pages in the drawer; the current page again closes it.
+  const onRail = (p: Page) => { if (p === page && drawer) setDrawer(false); else { setPage(p); setDrawer(true) } }
   return (
-    <Shell state={state} page={page} go={setPage} compact={false} info={info}
-      dock={<Dock state={state} open={dockOpen} setOpen={setDockOpen} visible={visible} info={info} stream={stream} onInfo={onInfo}
+    <Shell state={state} page={page} go={setPage} onRail={mode === 'split' ? undefined : onRail} compact={mode === 'compact'} info={info}
+      hint={mode === 'compact' ? 'Widen the window to see pages beside the phone'
+        : mode === 'landscape' ? 'Click a page in the rail to slide it over the phone' : undefined}
+      dock={<Dock state={state} mode={mode} open={dockOpen} setOpen={setDockOpen} visible={visible} info={info} stream={stream} onInfo={onInfo}
         recorder={recorder} notify={setNote} />}
       badges={recorder.startedAt !== null && (
         <>
@@ -137,21 +172,8 @@ export function App() {
           <button className="btn small" onClick={recorder.stop}>Stop</button>
         </>
       )}>
-      <div className="pane">
-        <Banners state={state} ignored={ignored} ignore={(sn) => setIgnored((p) => [...p, sn])} go={setPage} />
-        <div className="pane-content">
-          {page === 'home' && <Home state={state} go={setPage} />}
-          {page === 'apps' && <Apps state={state} />}
-          {page === 'files' && <Files state={state} dir={filesDir} setDir={(d) => setFilesDir(d.endsWith('/') ? d : `${d}/`)} />}
-          {page === 'clipboard' && <Clipboard state={state} />}
-          {page === 'notifications' && <Notifications state={state} />}
-          {page === 'pilot' && <Pilot state={state} />}
-          {page === 'layouts' && <Layouts state={state} />}
-          {page === 'security' && <Security state={state} />}
-        </div>
-        <Toasts toast={note ?? (toast && page !== 'files' ? fileToast(toast) : null)} apks={apks} installReady={ready && !state.fileOp.busy}
-          install={() => { void tether.installApk(apks[0]); setApks((a) => a.slice(1)) }} cancel={() => setApks((a) => a.slice(1))} />
-      </div>
+      {mode === 'split' ? <div className="pane">{content}{toasts}</div>
+        : drawer ? <Drawer title={pageName(page)} onClose={() => setDrawer(false)}>{content}{toasts}</Drawer> : toasts}
       {dragging && <DropOverlay ready={ready} where={friendlyPath(page === 'files' ? filesDir : DOWNLOAD)} />}
       {ready && !(dockOpen && visible) && state.pilot.current?.status === 'running' && (
         <PilotPip ai={state.pilot.current} open={() => setDockOpen(true)} />

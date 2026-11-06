@@ -131,3 +131,25 @@
 .pv-canvas { display: block; width: 100%; height: 100%; object-fit: contain; outline: none; cursor: default; touch-action: none; }
 .pv-msg { position: absolute; inset: 0; display: flex; background: #090403; }
 .dock-screen > .empty { color: var(--text); }
+
+/* Landscape and small windows: the phone takes the area, pages slide over it (AP-Landscape, AP-Compact) */
+.dock.wide { flex: 1; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 12px; border-right: 0; container-type: size; }
+.dock.wide .dock-screen { height: auto; width: min(100%, calc((100cqh - 56px) * var(--ar))); }
+.dock.wide .key-toolbar { flex-direction: row; }
+.dock.wide .key-btn.gap { margin-top: 0; margin-left: 10px; }
+.dock.narrow { flex: 1; justify-content: center; padding: 8px; border-right: 0; }
+.dock.narrow .dock-screen { max-width: calc(100% - 52px); }
+.rail.compact .rail-item { padding: 4px 0; }
+.rail.compact .rail-icon { width: 40px; height: 36px; }
+.drawer {
+  position: absolute; top: 0; bottom: 0; left: 80px; z-index: 30; width: clamp(360px, 34vw, 420px); max-width: calc(100% - 80px);
+  display: flex; flex-direction: column; overflow: hidden; outline: none;
+  background: var(--ground); border-right: 1px solid var(--control-line); box-shadow: 24px 0 60px rgba(0, 0, 0, 0.55);
+  animation: drawer-in 180ms ease-out;
+}
+.rail.compact ~ .drawer { left: 56px; max-width: calc(100% - 56px); }
+@keyframes drawer-in { from { transform: translateX(-100%); } }
+.drawer-head { height: 44px; flex: none; display: flex; align-items: center; gap: 10px; padding: 0 10px 0 16px; border-bottom: 1px solid var(--line); }
+.drawer-head h1 { flex: 1; margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+.drawer .pane-toolbar h1 { display: none; }
+.drawer .pane-toolbar { height: 44px; }
