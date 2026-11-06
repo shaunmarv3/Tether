@@ -5,7 +5,7 @@ import { sentence } from '../text'
 import { tether } from '../tether'
 import { EmptyState, ICON, Icon } from '../ui'
 
-export const ROOT = '/sdcard/'
+const ROOT = '/sdcard/'
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 export const errText = (err: unknown) => sentence(String((err as Error)?.message ?? err).replace(/^.*Error: /, ''))
@@ -14,7 +14,7 @@ const same = (a: string, b: string) => a.replace(/\/$/, '') === b.replace(/\/$/,
 
 // Path bar pieces. '/sdcard/' is Android's name for the phone's own storage, so it shows as "Phone storage";
 // a removable card ('/storage/6137-3639/') shows as "SD card".
-export function crumbs(dir: string): { label: string; path: string }[] {
+function crumbs(dir: string): { label: string; path: string }[] {
   const sd = /^\/storage\/[0-9A-F]{4}-[0-9A-F]{4}\//.exec(dir)
   const root = sd ? sd[0] : ROOT
   const rest = dir.slice(root.length).split('/').filter(Boolean)

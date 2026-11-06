@@ -56,8 +56,8 @@ export function Home({ state, go }: { state: AppState; go: (p: Page) => void }) 
           <div className="home-stats">
             <div className="home-battery">
               <svg width="54" height="54" viewBox="0 0 54 54" role="img" aria-label={`Battery ${pct ?? 'unknown'} percent`}>
-                <circle cx="27" cy="27" r="23" fill="none" stroke="#4A2618" strokeWidth="5" />
-                <circle cx="27" cy="27" r="23" fill="none" stroke="#FFB27A" strokeWidth="5" strokeLinecap="round"
+                <circle cx="27" cy="27" r="23" fill="none" stroke="var(--control-line)" strokeWidth="5" />
+                <circle cx="27" cy="27" r="23" fill="none" stroke="var(--accent)" strokeWidth="5" strokeLinecap="round"
                   strokeDasharray={`${((pct ?? 0) / 100) * ring} ${ring}`} transform="rotate(-90 27 27)" />
               </svg>
               <Stat value={pct == null ? '—' : `${pct}%`} label="Battery" />

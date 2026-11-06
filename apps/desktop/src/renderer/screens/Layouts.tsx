@@ -11,7 +11,7 @@ export function LayoutDrawing({ layout, w, h }: { layout: Layout; w: number; h: 
   const fit = (v: number, of: number) => Math.min(1, Math.max(0, v / of))
   return (
     <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden="true" className="layout-drawing">
-      <rect x="1" y="1" width={w - 2} height={h - 2} rx={big ? 8 : 4} fill={big ? '#1A0B06' : 'none'} stroke={big ? '#4A2618' : '#7A4A30'} />
+      <rect x="1" y="1" width={w - 2} height={h - 2} rx={big ? 8 : 4} fill={big ? 'var(--chrome)' : 'none'} stroke={big ? 'var(--control-line)' : '#7A4A30'} />
       {layout.windows.map((win, j) => {
         const b = win.bounds
         const x = pad + fit(b.x - (s.availLeft ?? 0), s.availWidth) * iw, y = pad + fit(b.y - (s.availTop ?? 0), s.availHeight) * ih

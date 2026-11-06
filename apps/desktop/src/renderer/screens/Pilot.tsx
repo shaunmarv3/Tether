@@ -12,7 +12,7 @@ const STATUS: Record<PilotTaskView['status'], string> = {
   waiting: 'Waiting for your OK', running: 'Running', denied: 'You said no', stopped: 'Stopped', done: 'Done',
 }
 const RESULT = { ok: ['Allowed', 'muted'], asked: ['Asking you', 'accent'], blocked: ['Blocked', 'bad'] } as const
-export const doneSteps = (t: PilotTaskView) => t.log.filter((s) => s.verdict !== 'blocked').length
+const doneSteps = (t: PilotTaskView) => t.log.filter((s) => s.verdict !== 'blocked').length
 export const stepLine = (t: PilotTaskView) => `step ${doneSteps(t)}${t.to ? '' : ' / 200'}`
 const hhmm = (iso: string) => new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
 

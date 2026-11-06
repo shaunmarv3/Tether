@@ -27,10 +27,10 @@ export function Connect({ state, skip }: { state: AppState; skip: () => void }) 
           <li className={asking ? 'on' : undefined}>On the phone, tap Allow when it asks about USB debugging. Tick “Always allow from this computer”.</li>
         </ol>
         <svg width="220" height="150" viewBox="0 0 220 150" aria-hidden="true">
-          <rect x="14" y="16" width="62" height="118" rx="12" fill="#FFB27A" />
-          <path d="M45 134V140Q45 146 60 146H140Q150 146 150 136V118" fill="none" stroke="#F6E9DA" strokeWidth="4" strokeLinecap="round" />
-          <rect x="110" y="30" width="96" height="66" rx="6" fill="none" stroke="#F6E9DA" strokeWidth="4" />
-          <path d="M100 112H216" stroke="#F6E9DA" strokeWidth="4" strokeLinecap="round" />
+          <rect x="14" y="16" width="62" height="118" rx="12" fill="var(--accent)" />
+          <path d="M45 134V140Q45 146 60 146H140Q150 146 150 136V118" fill="none" stroke="var(--text)" strokeWidth="4" strokeLinecap="round" />
+          <rect x="110" y="30" width="96" height="66" rx="6" fill="none" stroke="var(--text)" strokeWidth="4" />
+          <path d="M100 112H216" stroke="var(--text)" strokeWidth="4" strokeLinecap="round" />
         </svg>
       </div>
       <div className="setup-status" role="status">

@@ -57,11 +57,7 @@ export function Lock({ state }: { state: AppState }) {
     <div className="app">
       <BareTitleBar crumb="Locked" />
       <div className="lock">
-        <svg className="lock-mark" width="520" height="520" viewBox="0 0 64 64" aria-hidden="true">
-          <path d="M24 6V40Q24 56 40 56H45" fill="none" stroke="#FFB27A" strokeWidth="10" strokeLinecap="round" />
-          <path d="M12 22H40" stroke="#F6E9DA" strokeWidth="10" strokeLinecap="round" />
-          <circle cx="53" cy="56" r="6" fill="#F6E9DA" />
-        </svg>
+        <span className="lock-mark" aria-hidden="true"><Logo size={520} /></span>
         <form className="lock-form" onSubmit={submit}>
           <Logo size={48} />
           <h1 className="lock-title">Tether is locked</h1>

@@ -13,7 +13,7 @@ import { EmptyState, ICON, Icon } from './ui'
 const MIME = 'video/mp4;codecs=avc1,mp4a.40.2'
 export const failed = (err: unknown): Toast => ({ text: sentence(errText(err)), kind: 'error' })
 
-export interface Recorder { startedAt: number | null; start(canvas: HTMLCanvasElement): void; stop(): void }
+interface Recorder { startedAt: number | null; start(canvas: HTMLCanvasElement): void; stop(): void }
 
 // Records the dock's canvas (+ phone sound). Stopping saves the file; the result shows as a toast.
 // Locking stops it too: main refuses saves while locked, so the file is saved right after the unlock.

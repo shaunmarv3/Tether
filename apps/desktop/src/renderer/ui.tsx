@@ -68,8 +68,8 @@ export function Kbd({ keys }: { keys: string[] }) {
 
 const PHONE_MARK = (
   <svg width="40" height="40" viewBox="0 0 64 64" aria-hidden="true">
-    <rect x="16" y="6" width="26" height="40" rx="7" fill="none" stroke="#CDB4A0" strokeWidth="3" />
-    <path d="M29 46V50Q29 57 37 57H45" fill="none" stroke="#CDB4A0" strokeWidth="3" strokeLinecap="round" strokeDasharray="3 4" />
+    <rect x="16" y="6" width="26" height="40" rx="7" fill="none" stroke="var(--muted)" strokeWidth="3" />
+    <path d="M29 46V50Q29 57 37 57H45" fill="none" stroke="var(--muted)" strokeWidth="3" strokeLinecap="round" strokeDasharray="3 4" />
   </svg>
 )
 

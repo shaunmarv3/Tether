@@ -7,7 +7,7 @@ import { errText, fmtSize } from './Files'
 
 const WIPE: [WipeSeconds, string][] = [[30, '30 s'], [60, '60 s'], [120, '2 min']]
 
-export const DIR_LABEL = { phone: 'Phone → PC', pc: 'PC → Phone' } as const
+const DIR_LABEL = { phone: 'Phone → PC', pc: 'PC → Phone' } as const
 
 // Ticks once a second so ages and wipe countdowns stay current.
 export function useNow(): number {
@@ -28,7 +28,7 @@ export function ago(iso: string, now: number): string {
 
 export const wipeLeft = (c: Clip, now: number) => (c.wipeAt ? Math.max(0, Math.ceil((Date.parse(c.wipeAt) - now) / 1000)) : 0)
 
-export function linkLine(state: AppState): string | null {
+function linkLine(state: AppState): string | null {
   if (state.clipLink === 'starting') return 'connecting…'
   if (state.clipLink === 'error') return 'phone link lost, retrying'
   if (state.clipLink === 'off') return 'no phone'
