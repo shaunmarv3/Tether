@@ -4,18 +4,42 @@
 @import '@fontsource/chakra-petch/700.css';
 @import '@fontsource/martian-mono/400.css';
 @import '@fontsource/martian-mono/500.css';
+@import '@fontsource-variable/bricolage-grotesque';
+@import '@fontsource/dm-mono/400.css';
+@import '@fontsource/dm-mono/500.css';
 
 :root {
   color-scheme: dark; /* dark scrollbars and form controls */
-  --ground: #0f0e0d;
+  /* Stage as an app (spec §4) */
+  --ground: #24100A;
+  --chrome: #1A0B06;
+  --dock: #140804;
+  --inspector: #200E09;
+  --raised: #2A140D;
+  --raised-2: #33180F;
+  --selected: #3A1D13;
+  --line: #3A1E14;
+  --line-soft: #2E170F;
+  --control-line: #4A2618;
+  --control-line-2: #5E3524;
+  --field: #160906;
+  --text: #F6E9DA;
+  --text-soft: #E2CBB7;
+  --muted: #CDB4A0;
+  --accent: #FFB27A;
+  --danger: #FF9C8C;
+  --danger-bg: #3A1510;
+  --danger-line: #7A2E22;
+  --warn-bg: #3A2210;
+  --warn-line: #7A5022;
+  --ink: #24100A;
+  --mono: 'DM Mono', monospace;
+  /* old Dark Hardware tokens, still used by the old classes until the cleanup (Task 16) */
   --panel: #161513;
   --panel-2: #1f1d1a;
   --key: #262421;
   --border: #2a2824;
   --border-2: #3a3731;
-  --text: #efece6;
-  --muted: #a29d93;
-  --accent: #d4ff3a;
   --lcd: #0b0b09;
   --amber: #ffb000;
   --amber-dim: #c78a00;
@@ -24,7 +48,7 @@
 
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; }
-body { background: var(--ground); color: var(--text); font-family: 'Chakra Petch', sans-serif; font-weight: 500; }
+body { background: var(--ground); color: var(--text); font-family: 'Bricolage Grotesque Variable', sans-serif; font-size: 13.5px; line-height: 1.4; }
 button, input { font-family: inherit; }
 button { cursor: pointer; }
 

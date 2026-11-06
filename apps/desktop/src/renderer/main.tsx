@@ -3,6 +3,7 @@ import { App } from './App'
 import { AppWindow } from './AppWindow'
 import { Preview, type PreviewKind } from './Preview'
 import './theme.css'
+import './ui.css'
 
 // App windows load the same page with ?app=<package>&name=<name>&shape=<shape>; previews with ?preview=<file>&kind=….
 const q = new URLSearchParams(location.search)
