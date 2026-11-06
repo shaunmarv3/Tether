@@ -1,15 +1,15 @@
 import { useEffect, useState } from 'react'
 import type { PhoneApp } from '@tether/core'
 import { DEFAULT_APP_OPTIONS, type AppOptions, type AppState, type Shape } from '../../shared/api'
+import { sentence } from '../text'
 import { tether } from '../tether'
-import { TONES } from '../ui'
-
+import { EmptyState, Segmented, Switch, Tile, toneOf } from '../ui'
 
 type Filter = 'all' | 'open' | 'pinned'
 const SHAPES: [Shape, string, string][] = [
-  ['phone', 'PHONE', 'SAME SHAPE AS YOUR PHONE'],
-  ['tablet', 'TABLET', '1920×1200 · 240 DPI'],
-  ['free', 'FREE', 'RESIZES WITH THE WINDOW'],
+  ['phone', 'Phone', 'Same shape as your phone'],
+  ['tablet', 'Tablet', '1920 × 1200 · 240 dpi'],
+  ['free', 'Free', 'Resizes with the window'],
 ]
 const TOGGLES: [keyof Omit<AppOptions, 'shape'>, string][] = [
   ['keepRunning', 'Keep running when closed'],
@@ -40,97 +40,76 @@ export function Apps({ state }: { state: AppState }) {
     (filter === 'all' || (filter === 'open' ? isOpen(a.pkg) : isPinned(a.pkg))) &&
     (!q || a.name.toLowerCase().includes(q) || a.pkg.includes(q)))
   const app = apps?.find((a) => a.pkg === selected) ?? shown[0] ?? null
-  const tint = (pkg: string) => TONES[Math.max(0, apps?.findIndex((a) => a.pkg === pkg) ?? 0) % 4][0]
   const openCount = (apps ?? []).filter((a) => isOpen(a.pkg)).length
 
   return (
-    <main className="main">
-      <header className="row between wrap end">
-        <div className="col">
-          <span className="mono tiny muted">{apps ? `${apps.length} APPS ON PHONE · ${openCount} OPEN` : 'APPS'}</span>
-          <h1 className="headline">Every app, <span className="accent-text">its own window.</span></h1>
-        </div>
-        <div className="row wrap">
-          <div className="filter" role="group" aria-label="Filter">
-            {(['all', 'open', 'pinned'] as Filter[]).map((f) => (
-              <button key={f} aria-pressed={filter === f} className={filter === f ? 'on' : ''} onClick={() => setFilter(f)}>{f.toUpperCase()}</button>
-            ))}
-          </div>
-          <label className="search">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
-              <circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" />
-            </svg>
-            <span className="sr">Find an app</span>
-            <input type="search" placeholder="Find an app" value={query} onChange={(e) => setQuery(e.target.value)} />
-          </label>
-        </div>
-      </header>
+    <div className="page">
+      <div className="pane-toolbar" role="toolbar" aria-label="Apps">
+        <h1>Apps</h1>
+        <span className="hint">{apps ? `${apps.length} on the phone · ${openCount} open` : 'Every app in its own window'}</span>
+        <span className="spacer" />
+        <Segmented label="Filter" value={filter} set={setFilter} options={[['all', 'All'], ['open', 'Open'], ['pinned', 'Pinned']]} />
+        <label className="sr" htmlFor="apps-q">Find an app</label>
+        <input id="apps-q" className="field apps-search" type="search" placeholder="Find an app" value={query} onChange={(e) => setQuery(e.target.value)} />
+      </div>
 
-      {!serial ? <section className="lcd status"><div className="lcd-title">NO PHONE · PLUG IN A USB CABLE</div></section>
-        : error ? <section className="lcd status"><div className="lcd-title">COULDN'T READ APPS · {error.toUpperCase()}</div></section>
-        : !apps ? <section className="lcd status"><div className="lcd-title blink">READING APPS…</div></section>
+      {!serial ? <EmptyState title="No phone" note="Plug in a USB cable" kind="phone" />
+        : error ? <EmptyState title="Couldn't read apps" note={sentence(error)} />
+        : !apps ? <EmptyState title="Reading apps…" kind="loading" boxed />
         : (
-          <div className="apps-layout">
-            <section className="app-grid-card" aria-label="All apps">
+          <div className="pane-body">
+            <section className="pane-scroll apps-grid-wrap" aria-label="All apps">
               {shown.length ? (
-                <div className="app-grid">
+                <div className="apps-grid">
                   {shown.map((a) => (
-                    <button key={a.pkg} className={`pad ${app?.pkg === a.pkg ? 'selected' : ''}`} aria-pressed={app?.pkg === a.pkg}
+                    <button key={a.pkg} className="apps-tile" aria-pressed={app?.pkg === a.pkg} title={a.name}
                       onClick={() => setSelected(a.pkg)} onDoubleClick={() => void tether.openApp(a.pkg, a.name)}>
-                      <span className={`led ${isOpen(a.pkg) ? 'on' : ''}`} />
-                      <span className="pad-face small-face" style={{ color: tint(a.pkg) }}>{a.name.charAt(0).toUpperCase()}</span>
-                      <span className="pad-name">{a.name}</span>
+                      <Tile name={a.name} tone={toneOf(a.pkg, state.pins)} />
+                      <span className="ellipsis apps-name">{a.name}</span>
+                      {isOpen(a.pkg) && <span className="apps-dot" aria-label="open" />}
                     </button>
                   ))}
                 </div>
-              ) : <span className="mono small muted">{filter === 'open' ? 'NO APP WINDOWS OPEN' : filter === 'pinned' ? 'NOTHING PINNED YET' : 'NO APP MATCHES'}</span>}
+              ) : <EmptyState title={filter === 'open' ? 'No app windows open' : filter === 'pinned' ? 'Nothing pinned yet' : 'No app matches'} />}
             </section>
-            {app && <AppPanel app={app} state={state} open={isOpen(app.pkg)} pinned={isPinned(app.pkg)} tint={tint(app.pkg)} />}
+            {app && <AppPanel app={app} state={state} open={isOpen(app.pkg)} pinned={isPinned(app.pkg)} />}
           </div>
         )}
-    </main>
+    </div>
   )
 }
 
-function AppPanel({ app, state, open, pinned, tint }: { app: PhoneApp; state: AppState; open: boolean; pinned: boolean; tint: string }) {
+function AppPanel({ app, state, open, pinned }: { app: PhoneApp; state: AppState; open: boolean; pinned: boolean }) {
   const opts = state.appOptions[app.pkg] ?? DEFAULT_APP_OPTIONS
   const set = (patch: Partial<AppOptions>) => void tether.setAppOptions(app.pkg, { ...opts, ...patch })
   const full = !pinned && state.pins.length >= 8
 
   return (
-    <section className="card app-panel" aria-labelledby="sel-h">
-      <div className="row panel-head">
-        <span className="pad-face" style={{ color: tint }}>{app.name.charAt(0).toUpperCase()}</span>
-        <div className="col tight">
-          <h2 id="sel-h" className="panel-title">{app.name}</h2>
-          <span className="mono tiny muted">{app.pkg.toUpperCase()}</span>
+    <aside className="inspector" aria-labelledby="sel-h">
+      <div className="apps-head">
+        <Tile name={app.name} tone={toneOf(app.pkg, state.pins)} size={48} radius={14} font={22} />
+        <div className="grow">
+          <h2 id="sel-h" className="inspector-title ellipsis">{app.name}</h2>
+          <div className="mono apps-pkg ellipsis">{app.pkg}</div>
         </div>
       </div>
-      <div className="lcd panel-lcd">
-        <span>{open ? '● WINDOW OPEN' : '○ NO WINDOW'}</span>
-        <span className="dim">{open ? 'CHANGES APPLY NEXT TIME YOU OPEN IT' : SHAPES.find((s) => s[0] === opts.shape)![2]}</span>
+      <div>
+        <div className="section-title apps-label">Window shape</div>
+        <Segmented label="Window shape" full value={opts.shape} set={(shape) => set({ shape })} options={SHAPES.map(([s, l]) => [s, l])} />
+        <div className="apps-note">{open ? 'Changes apply next time you open it' : SHAPES.find((s) => s[0] === opts.shape)![2]}</div>
       </div>
-      <div className="col">
-        <span className="mono tiny muted">WINDOW SHAPE</span>
-        <div className="segments three" role="group" aria-label="Window shape">
-          {SHAPES.map(([s, label]) => (
-            <button key={s} className={`segment ${opts.shape === s ? 'on' : ''}`} aria-pressed={opts.shape === s} onClick={() => set({ shape: s })}>{label}</button>
-          ))}
-        </div>
-      </div>
-      <div className="col toggles">
+      <div>
         {TOGGLES.map(([k, label]) => (
-          <button key={k} className="setting" aria-pressed={opts[k]} onClick={() => set({ [k]: !opts[k] })}>
-            {label}<span className={`switch ${opts[k] ? 'on' : ''}`} />
-          </button>
+          <div key={k} className="switch-row">{label}<Switch label={label} on={opts[k]} set={(on) => set({ [k]: on })} /></div>
         ))}
       </div>
-      <div className="row">
-        <button className="key accent grow-key" onClick={() => void tether.openApp(app.pkg, app.name)}>{open ? 'FOCUS WINDOW' : 'OPEN WINDOW'}</button>
-        <button className="key" disabled={full} onClick={() => void (pinned ? tether.unpin(app.pkg) : tether.pin(app.pkg, app.name))}>
-          {pinned ? 'UNPIN' : full ? 'CHANNELS FULL' : 'PIN'}
+      <span className="spacer" />
+      <div className="apps-actions">
+        <button className="btn primary big grow" onClick={() => void tether.openApp(app.pkg, app.name)}>{open ? 'Focus window' : 'Open window'}</button>
+        <button className="btn big" disabled={full} onClick={() => void (pinned ? tether.unpin(app.pkg) : tether.pin(app.pkg, app.name))}>
+          {pinned ? 'Unpin' : full ? 'Channels full' : 'Pin'}
         </button>
       </div>
-    </section>
+    </aside>
   )
 }
