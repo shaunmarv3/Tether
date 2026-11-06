@@ -1,6 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import type { Activity, AppState, IdleMinutes } from '../../shared/api'
-import { PowerIcon } from '../Sidebar'
 import { tether } from '../tether'
 import { Switch } from './Clipboard'
 import { MIN_PASSWORD } from './Lock'
@@ -98,6 +97,14 @@ function PasswordCard({ weak }: { weak: boolean }) {
         <button className="key" type="submit" disabled={!form.current || !form.next}>CHANGE PASSWORD</button>
       </div>
     </form>
+  )
+}
+
+function PowerIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F0584A" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+      <path d="M12 3v9" /><path d="M6.3 6.3a8 8 0 1 0 11.4 0" />
+    </svg>
   )
 }
 

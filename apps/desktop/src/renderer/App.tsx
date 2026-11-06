@@ -13,12 +13,11 @@ import { Mirror } from './screens/Mirror'
 import { Notifications } from './screens/Notifications'
 import { Pilot, PilotAsk, PilotPip } from './screens/Pilot'
 import { Security } from './screens/Security'
-import { Sidebar, type Page } from './Sidebar'
+import { Banners, DropOverlay, fileToast, Shell, Toasts, type Page } from './Shell'
 import { tether } from './tether'
 
 const DOWNLOAD = '/sdcard/Download/'
 const isApk = (p: string) => p.toLowerCase().endsWith('.apk')
-const baseName = (p: string) => p.split(/[\\/]/).pop() ?? p
 
 export function App() {
   const [state, setState] = useState<AppState | null>(null)
@@ -95,49 +94,28 @@ export function App() {
   if (!state.known.length && !skipped) return <Connect state={state} skip={() => setSkipped(true)} />
   const ready = state.device?.state === 'device'
   return (
-    <div className="shell">
-      <Sidebar state={state} page={page} go={setPage} />
-      {page === 'home' && <Home state={state} go={setPage} record={() => { setRecordAsked(true); setPage('mirror') }}
-        ignored={ignored} ignore={(sn) => setIgnored((p) => [...p, sn])} />}
-      {page === 'mirror' && <Mirror state={state} recordAsked={recordAsked} clearRecordAsk={() => setRecordAsked(false)} />}
-      {page === 'apps' && <Apps state={state} />}
-      {page === 'files' && <Files state={state} dir={filesDir} setDir={(d) => setFilesDir(d.endsWith('/') ? d : `${d}/`)} />}
-      {page === 'clipboard' && <Clipboard state={state} />}
-      {page === 'notifications' && <Notifications state={state} />}
-      {page === 'pilot' && <Pilot state={state} />}
-      {page === 'layouts' && <Layouts state={state} />}
-      {page === 'security' && <Security state={state} />}
-
-      {dragging && (
-        <div className="drop-overlay" aria-hidden="true">
-          <div className="drop-box">
-            <span className="drop-title big">{ready ? 'DROP TO SEND' : 'NO PHONE'}</span>
-            <span className="mono small muted">{ready ? `TO ${friendlyPath(page === 'files' ? filesDir : DOWNLOAD)} · APKS INSTALL` : 'PLUG IN A USB CABLE'}</span>
-          </div>
+    <Shell state={state} page={page} go={setPage} compact={false} dock={null} badges={null} info={null}>
+      <div className="pane">
+        <Banners state={state} ignored={ignored} ignore={(sn) => setIgnored((p) => [...p, sn])} go={setPage} />
+        <div className="pane-content">
+          {page === 'home' && <Home state={state} go={setPage} record={() => { setRecordAsked(true); setPage('mirror') }} />}
+          {page === 'mirror' && <Mirror state={state} recordAsked={recordAsked} clearRecordAsk={() => setRecordAsked(false)} />}
+          {page === 'apps' && <Apps state={state} />}
+          {page === 'files' && <Files state={state} dir={filesDir} setDir={(d) => setFilesDir(d.endsWith('/') ? d : `${d}/`)} />}
+          {page === 'clipboard' && <Clipboard state={state} />}
+          {page === 'notifications' && <Notifications state={state} />}
+          {page === 'pilot' && <Pilot state={state} />}
+          {page === 'layouts' && <Layouts state={state} />}
+          {page === 'security' && <Security state={state} />}
         </div>
-      )}
-      {apks.length > 0 && (
-        <div className="bottom-bar" role="alertdialog" aria-label="Install app">
-          <span className="mono small">INSTALL {baseName(apks[0]).toUpperCase()}?{apks.length > 1 && <span className="muted"> · {apks.length - 1} MORE</span>}</span>
-          <div className="row">
-            <button className="small-key accent-key" disabled={!ready || state.fileOp.busy}
-              onClick={() => { void tether.installApk(apks[0]); setApks((a) => a.slice(1)) }}>INSTALL</button>
-            <button className="small-key" onClick={() => setApks((a) => a.slice(1))}>CANCEL</button>
-          </div>
-        </div>
-      )}
-      {!apks.length && toast && page !== 'files' && (
-        <div className="bottom-bar" role="status">
-          <span className={`mono small ${toast.error ? 'danger-text' : toast.busy ? 'amber-text' : 'accent-text'}`}>
-            {toast.busy && <span className="blink">● </span>}{toast.text!.replace(' · OPEN FOLDER', '')}
-          </span>
-          {toast.text!.endsWith('OPEN FOLDER') && <button className="small-key" onClick={() => void tether.openSaveFolder()}>OPEN FOLDER</button>}
-        </div>
-      )}
+        <Toasts toast={toast && page !== 'files' ? fileToast(toast) : null} apks={apks} installReady={ready && !state.fileOp.busy}
+          install={() => { void tether.installApk(apks[0]); setApks((a) => a.slice(1)) }} cancel={() => setApks((a) => a.slice(1))} />
+      </div>
+      {dragging && <DropOverlay ready={ready} where={friendlyPath(page === 'files' ? filesDir : DOWNLOAD)} />}
       {ready && page !== 'mirror' && state.pilot.current?.status === 'running' && (
         <PilotPip ai={state.pilot.current} open={() => setPage('mirror')} />
       )}
       {state.pilot.question && <PilotAsk q={state.pilot.question} />}
-    </div>
+    </Shell>
   )
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import type { AppState } from '../../shared/api'
-import type { Page } from '../Sidebar'
+import type { Page } from '../Shell'
 import { tether } from '../tether'
 import { DIR_LABEL, linkLine, useNow, wipeLeft } from './Clipboard'
 import { errText } from './Files'
@@ -38,9 +38,7 @@ const ICONS = {
   off: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z" /></svg>,
 }
 
-export function Home({ state, go, record, ignored, ignore }: {
-  state: AppState; go: (p: Page) => void; record: () => void; ignored: string[]; ignore: (serialNo: string) => void
-}) {
+export function Home({ state, go, record }: { state: AppState; go: (p: Page) => void; record: () => void }) {
   const now = useNow()
   const [quick, setQuick] = useState<{ text: string; error: boolean } | null>(null)
   useEffect(() => {
@@ -59,7 +57,6 @@ export function Home({ state, go, record, ignored, ignore }: {
   const link = device ? (device.transport === 'usb' ? 'USB' : 'WI-FI') : '—'
   const message = lcdMessage(state)
   const bars = Math.round((status?.batteryPct ?? 0) / 10)
-  const strangers = state.unknown.filter((u) => !ignored.includes(u.serialNo!))
 
   return (
     <main className="main">
@@ -72,33 +69,6 @@ export function Home({ state, go, record, ignored, ignore }: {
           <span className={`led ${state.openViews.includes('mirror') ? 'on' : ''}`} />MIRROR
         </button>
       </header>
-
-      {state.weakPassword && (
-        <section className="alert amber" role="alert">
-          <div className="col">
-            <span className="alert-title"><span className="led amber" />OLD SHORT PIN</span>
-            <span className="alert-note">TETHER now uses a password of 8 or more characters. Set one on the Security screen.</span>
-          </div>
-          <button className="key" onClick={() => go('security')}>SET PASSWORD</button>
-        </section>
-      )}
-
-      {strangers.map((u) => (
-        <section key={u.serialNo} className="alert" role="alert">
-          <div className="col">
-            <span className="alert-title"><span className="led red" />UNKNOWN PHONE · {(u.name ?? u.serialNo)!.toUpperCase()}</span>
-            <span className="alert-note">
-              {state.known.length
-                ? 'A phone TETHER has never seen is plugged in. Trust it only if it is yours.'
-                : 'First time here. Trust this phone so TETHER can show and control it.'}
-            </span>
-          </div>
-          <div className="row">
-            <button className="key accent" onClick={() => void tether.trust(u.serialNo!)}>TRUST</button>
-            <button className="key" onClick={() => ignore(u.serialNo!)}>IGNORE</button>
-          </div>
-        </section>
-      ))}
 
       <div className="status-row">
       <section className="lcd status" aria-label="Phone status">

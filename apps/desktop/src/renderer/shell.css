@@ -1,0 +1,97 @@
+/* Stage as an app: the fixed shell (AP-Home), banners, toasts, drop overlay (AP-Parts). */
+
+.app { height: 100vh; display: flex; flex-direction: column; overflow: hidden; background: var(--ground); color: var(--text); }
+.app-body { flex: 1; min-height: 0; display: flex; position: relative; }
+
+/* Title bar: the drag area; Windows draws the caption buttons over the right 138 px. */
+.titlebar {
+  height: 36px; flex: none; display: flex; align-items: center; gap: 10px; padding: 0 138px 0 14px;
+  background: var(--chrome); border-bottom: 1px solid var(--line); -webkit-app-region: drag; white-space: nowrap;
+}
+.titlebar button, .titlebar a, .titlebar input { -webkit-app-region: no-drag; }
+.titlebar-name { font-weight: 700; letter-spacing: -0.01em; }
+.titlebar-badges { display: flex; align-items: center; gap: 8px; }
+.live-badge {
+  display: flex; align-items: center; gap: 7px; height: 26px; padding: 0 10px; border-radius: 7px; font-weight: 600;
+  background: var(--selected); color: var(--accent);
+}
+.live-badge.rec { background: var(--danger-bg); color: var(--danger); }
+.live-badge .dot { width: 7px; height: 7px; }
+.live-badge.rec .dot { width: 8px; height: 8px; background: #FF5A4A; }
+
+/* Rail */
+.rail {
+  flex: 0 0 80px; padding: 8px 0; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  background: var(--chrome); border-right: 1px solid var(--line); overflow-y: auto; overflow-x: hidden;
+}
+.rail.compact { flex-basis: 56px; }
+.rail-item {
+  width: 72px; padding: 6px 0 5px; display: flex; flex-direction: column; align-items: center; gap: 3px;
+  background: transparent; border: 0; border-radius: 10px; color: var(--muted); font-size: 10.5px;
+}
+.rail.compact .rail-item { width: 48px; }
+.rail-icon { width: 44px; height: 28px; border-radius: 9px; display: grid; place-items: center; }
+.rail-item:hover .rail-icon { background: var(--raised); }
+.rail-item[aria-current='page'] { color: var(--text); }
+.rail-item[aria-current='page'] .rail-icon { background: var(--selected); color: var(--accent); }
+.rail-label { white-space: nowrap; }
+.rail-lock {
+  width: 44px; height: 36px; flex: none; display: grid; place-items: center;
+  background: transparent; border: 0; border-radius: 9px; color: var(--muted);
+}
+.rail-lock:hover { background: var(--raised); color: var(--text); }
+
+/* Page pane */
+.pane { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+.pane-content { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: auto; }
+
+/* Status bar */
+.statusbar {
+  height: 26px; flex: none; display: flex; align-items: center; gap: 18px; padding: 0 14px;
+  background: var(--chrome); border-top: 1px solid var(--line); font-family: var(--mono); font-size: 11px;
+  color: var(--muted); white-space: nowrap; overflow: hidden;
+}
+.statusbar-phone { color: var(--text); }
+.status-dot { display: inline-block; width: 7px; height: 7px; margin-right: 7px; border-radius: 50%; background: var(--control-line-2); vertical-align: 1px; }
+.status-dot.on { background: var(--accent); }
+.statusbar-hint { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+
+/* Banners */
+.banners { flex: none; display: flex; flex-direction: column; gap: 8px; padding: 12px 16px 0; }
+.banner {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 12px 14px; border-radius: 12px; border: 1px solid;
+}
+.banner.danger { background: var(--danger-bg); border-color: var(--danger-line); }
+.banner.warn { background: var(--warn-bg); border-color: var(--warn-line); }
+.banner-text { flex: 1 1 240px; min-width: 0; }
+.banner-title { font-weight: 700; }
+.banner-note { color: var(--text-soft); font-size: 12.5px; }
+.banner .banner-ghost { border-color: var(--danger-line); }
+
+/* Toasts and the install bar: floating at the bottom of the page pane */
+.toasts { position: absolute; left: 16px; right: 16px; bottom: 16px; z-index: 20; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+.toast {
+  pointer-events: auto; display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+}
+.toast.ok { background: var(--text); color: var(--ink); }
+.toast.ok .toast-action { color: #8A3A16; font-weight: 700; }
+.toast.busy, .toast.install { background: var(--raised-2); }
+.toast.install { border: 1px solid var(--control-line-2); }
+.toast.error { background: var(--danger-bg); border: 1px solid var(--danger-line); }
+.toast .grow { flex: 1; min-width: 0; font-weight: 600; }
+.toast.install .grow { font-weight: 400; }
+.toast-dot { width: 8px; height: 8px; flex: none; border-radius: 50%; background: #2E7D4F; }
+.toast-bar { width: 90px; height: 4px; flex: none; border-radius: 2px; background: var(--control-line); overflow: hidden; }
+.toast-bar i { display: block; width: 40%; height: 4px; border-radius: 2px; background: var(--accent); animation: toast-bar 1.2s ease-in-out infinite; }
+@keyframes toast-bar { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+.grow { flex: 1; min-width: 0; }
+
+/* Drop overlay: a dashed peach box over the whole window */
+.drop-overlay { position: fixed; inset: 0; z-index: 50; padding: 16px; background: rgba(14, 5, 2, 0.7); pointer-events: none; }
+.drop-box {
+  width: 100%; height: 100%; border: 2px dashed var(--accent); border-radius: 14px; background: rgba(255, 178, 122, 0.06);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+}
+.drop-title { font-size: 24px; font-weight: 500; letter-spacing: -0.02em; }
+.drop-box .mono { font-size: 12px; }

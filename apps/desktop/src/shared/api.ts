@@ -87,6 +87,7 @@ export interface TetherApi {
   trust(serialNo: string): Promise<void>
   forget(serialNo: string): Promise<void>
   lockdown(): Promise<void>
+  lockNow(): Promise<void> // lock by hand (rail button); not Lockdown
   setIdle(minutes: IdleMinutes): Promise<void>
   getActivity(): Promise<Activity[]>
   // phone views

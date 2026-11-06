@@ -91,8 +91,8 @@ const views = new Views({
     const size = opts.shape === 'tablet' ? [960, 600] : opts.shape === 'free' ? [900, 640] : [400, 860]
     const w = new BrowserWindow({
       ...(bounds ?? { width: size[0], height: size[1] + TITLE_BAR }), useContentSize: !bounds,
-      show: false, backgroundColor: '#0F0E0D', title: name, icon, alwaysOnTop: opts.onTop, autoHideMenuBar: true,
-      titleBarStyle: 'hidden', titleBarOverlay: { color: '#161513', symbolColor: '#EFECE6', height: TITLE_BAR },
+      show: false, backgroundColor: '#24100A', title: name, icon, alwaysOnTop: opts.onTop, autoHideMenuBar: true,
+      titleBarStyle: 'hidden', titleBarOverlay: { color: '#1A0B06', symbolColor: '#F6E9DA', height: TITLE_BAR },
       webPreferences: webPreferences(),
     })
     harden(w)
@@ -541,8 +541,8 @@ function showPreview(w: BrowserWindow, p: PreviewWin): void {
 function openPreview(p: PreviewWin): void {
   const pdf = previewKind(p.names[p.i]) === 'pdf'
   const w = new BrowserWindow({
-    width: 960, height: 720, backgroundColor: '#0F0E0D', title: p.names[p.i], icon, autoHideMenuBar: true,
-    ...(pdf ? {} : { titleBarStyle: 'hidden' as const, titleBarOverlay: { color: '#161513', symbolColor: '#EFECE6', height: TITLE_BAR } }),
+    width: 960, height: 720, backgroundColor: '#24100A', title: p.names[p.i], icon, autoHideMenuBar: true,
+    ...(pdf ? {} : { titleBarStyle: 'hidden' as const, titleBarOverlay: { color: '#1A0B06', symbolColor: '#F6E9DA', height: TITLE_BAR } }),
     // plugins = Chromium's PDF viewer (off by default: a PDF would turn into a download and close the window)
     webPreferences: { ...webPreferences(), plugins: true, autoplayPolicy: 'no-user-gesture-required' },
   })
@@ -603,7 +603,8 @@ function notifySaved(body: string, file: string): void {
 
 function createWindow(): BrowserWindow {
   const w = new BrowserWindow({
-    width: 1180, height: 760, show: false, backgroundColor: '#0F0E0D', title: 'TETHER', icon, autoHideMenuBar: true,
+    width: 1280, height: 800, minWidth: 520, minHeight: 640, show: false, backgroundColor: '#24100A', title: 'TETHER', icon,
+    autoHideMenuBar: true, titleBarStyle: 'hidden', titleBarOverlay: { color: '#1A0B06', symbolColor: '#F6E9DA', height: 36 },
     webPreferences: webPreferences(),
   })
   harden(w)
@@ -741,6 +742,11 @@ else {
         recompute()
       },
       lockdown: doLockdown,
+      lockNow: () => {
+        views.closeAll()
+        act('LOCKED BY YOU')
+        lock('LOCKED BY YOU')
+      },
       setIdle: (minutes) => {
         settings.idleMinutes = minutes
         saveSettings(settings)

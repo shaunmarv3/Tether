@@ -19,6 +19,7 @@ const api: TetherApi = {
   trust: (serialNo) => ipcRenderer.invoke('tether:trust', serialNo),
   forget: (serialNo) => ipcRenderer.invoke('tether:forget', serialNo),
   lockdown: () => ipcRenderer.invoke('tether:lockdown'),
+  lockNow: () => ipcRenderer.invoke('tether:lockNow'),
   setIdle: (minutes) => ipcRenderer.invoke('tether:setIdle', minutes),
   getActivity: () => ipcRenderer.invoke('tether:getActivity'),
   attach: (view) => ipcRenderer.invoke('tether:attach', view),
