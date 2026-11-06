@@ -194,7 +194,9 @@ pilot.command = `claude ${MCP_ADD.map((a) => (/\s/.test(a) ? `"${a}"` : a)).join
 
 async function checkClaude(): Promise<void> {
   try {
-    pilot.connected = (await run('claude', ['mcp', 'get', 'tether'], { timeoutMs: 60_000 })).code === 0
+    // Connected = registered AND pointing at this Tether (an old install's path counts as not connected).
+    const r = await run('claude', ['mcp', 'get', 'tether'], { timeoutMs: 60_000 })
+    pilot.connected = r.code === 0 && r.stdout.toLowerCase().includes(process.execPath.toLowerCase())
   } catch {
     pilot.connected = null // no claude.exe on PATH (or it hung): connect by hand
   }
@@ -905,7 +907,10 @@ else {
       pilotAnswer: (id, yes, text) => pilot.answer(id, yes, text),
       pilotAskSends: (on) => pilot.setAskSends(on),
       pilotStop: () => pilot.stop('STOPPED BY YOU'),
-      pilotConnect: () => claude(MCP_ADD, 'CLAUDE CODE CONNECTED'),
+      pilotConnect: async () => {
+        await run('claude', ['mcp', 'remove', 'tether', '--scope', 'user'], { timeoutMs: 60_000 }).catch(() => null) // an old entry, if any
+        await claude(MCP_ADD, 'CLAUDE CODE CONNECTED')
+      },
       pilotDisconnect: () => claude(['mcp', 'remove', 'tether', '--scope', 'user'], 'CLAUDE CODE DISCONNECTED'),
       saveRecording: async (data) => {
         mkdirSync(saveDir(), { recursive: true })
