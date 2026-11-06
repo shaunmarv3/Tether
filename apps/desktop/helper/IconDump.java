@@ -41,7 +41,7 @@ public final class IconDump {
         System.out.println(pkg + " " + Base64.encodeToString(png.toByteArray(), Base64.NO_WRAP));
       } catch (Throwable t) {
         System.out.println(pkg + " -");
-        for (Throwable e = t; e != null; e = e.getCause()) System.err.println(pkg + ": " + e); // Tether logs it
+        for (Throwable e = t; e != null; e = e.getCause()) System.err.println(pkg + ": " + e); // why, for `adb shell` debugging
       }
     }
   }

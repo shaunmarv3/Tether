@@ -27,7 +27,6 @@ button:disabled { cursor: default; }
 .btn.small { height: 26px; padding: 0 10px; border-radius: 7px; }
 .btn.mid { height: 30px; border-radius: 7px; }
 .btn.big { height: 36px; padding: 0 14px; }
-.btn.wide { width: 100%; }
 .icon-btn {
   width: 32px; height: 32px; flex: none; padding: 0; display: grid; place-items: center;
   background: var(--raised); border: 0; border-radius: 8px; color: var(--text);
@@ -79,7 +78,6 @@ button:disabled { cursor: default; }
   display: inline-flex; align-items: center; height: 20px; padding: 0 7px; flex: none; border-radius: 5px;
   background: var(--raised-2); color: var(--muted); font-family: var(--mono); font-size: 10.5px; white-space: nowrap;
 }
-.chip.accent { color: var(--accent); background: var(--selected); }
 .dot { width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--accent); }
 .section-title { margin: 0; font-size: 12px; font-weight: 600; color: var(--muted); }
 .tile {
