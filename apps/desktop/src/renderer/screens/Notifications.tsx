@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import type { AppState, NotificationItem } from '../../shared/api'
+import { sentence } from '../text'
 import { tether } from '../tether'
+import { EmptyState, Tile, toneOf } from '../ui'
 import { ago, useNow } from './Clipboard'
 import { errText } from './Files'
 
@@ -27,7 +29,7 @@ export function useNotifications(state: AppState): { list: NotificationItem[] | 
   return { list, setList, error, setError }
 }
 
-// The phone's notification shade, read over adb. CLEAR removes one from the phone (no undo, like a swipe).
+// The phone's notification shade, read over adb. Clear removes one from the phone (no undo, like a swipe).
 export function Notifications({ state }: { state: AppState }) {
   const now = useNow()
   const ready = state.device?.state === 'device'
@@ -41,59 +43,54 @@ export function Notifications({ state }: { state: AppState }) {
   }
 
   const shown = list?.find((n) => n.key === picked) ?? null
-  const line = !ready ? 'NO PHONE · PLUG IN A USB CABLE' : !list ? 'READING THE SHADE…'
-    : `${list.length} IN THE SHADE · LIVE`
+  const hint = !ready ? 'No phone' : !list ? 'Reading the shade…' : `${list.length} in the phone's shade, updated live`
 
   return (
-    <main className="main">
-      <header className="col">
-        <span className="mono small muted">{line}</span>
-        <h1 className="headline">Your phone's shade, <span className="accent-text">on the PC.</span></h1>
-      </header>
+    <div className="page">
+      <div className="pane-toolbar" role="toolbar" aria-label="Notifications">
+        <h1>Notifications</h1>
+        <span className="hint">{hint}</span>
+      </div>
 
-      <div className="clip-layout">
-        <section className="clip-history" aria-labelledby="notif-h">
-          <h2 id="notif-h" className="clip-head">NOTIFICATIONS · NOW</h2>
-          {list && !list.length && <div className="files-empty mono small muted">NOTHING IN THE SHADE</div>}
-          {list?.map((n) => (
-            <div key={n.key} className={`clip-row ${n.key === picked ? 'picked' : ''} ${n.code ? 'secret' : ''}`}>
-              <button className="notif-open" aria-pressed={n.key === picked} onClick={() => setPicked(n.key)}>
-                <span className="row notif-meta">
-                  <span className="dir-chip mono">{n.app.toUpperCase()}</span>
-                  <span className="mono tiny muted">{ago(when(n), now)}</span>
-                </span>
-                {n.title && <span className="notif-title">{n.title}</span>}
-                <span className="clip-text muted">{n.code ? '●●●●●● ONE-TIME CODE' : n.text}</span>
-              </button>
-              {n.clearable && <button className="small-key" onClick={() => clear(n.key)}>CLEAR</button>}
+      {!ready ? <EmptyState title="No phone" note="Plug in a USB cable" kind="phone" /> : (
+        <div className="pane-body">
+          <section className="pane-scroll" aria-label="In the shade now">
+            {!list ? <EmptyState title="Reading the shade…" kind="loading" boxed />
+              : !list.length && <EmptyState title="Nothing in the shade" />}
+            <div className="row-list">
+              {list?.map((n) => (
+                <div key={n.key} className="row notif-row" aria-selected={n.key === picked}>
+                  <Tile name={n.app} tone={toneOf(n.pkg, state.pins)} size={32} radius={10} font={14} />
+                  <button className="notif-open grow" aria-pressed={n.key === picked} onClick={() => setPicked(n.key)}>
+                    <span className="notif-meta"><span className="notif-app">{n.app}</span><span className="mono muted">{ago(when(n), now)}</span></span>
+                    {n.title && <span className="notif-title">{n.title}</span>}
+                    <span className="ellipsis notif-text">{n.code ? 'One-time code, hidden' : n.text}</span>
+                  </button>
+                  {n.clearable && <button className="btn small" onClick={() => clear(n.key)}>Clear</button>}
+                </div>
+              ))}
             </div>
-          ))}
-          {error && <div className="files-empty mono small danger-text" role="alert">{error}</div>}
-        </section>
+            {error && <div className="error-text page-error" role="alert">{sentence(error)}</div>}
+          </section>
 
-        <aside className="clip-side">
-          <section className="card notif-detail" aria-live="polite">
+          <aside className="inspector notif-panel" aria-label="Full message" aria-live="polite">
             {shown ? (
               <>
-                <span className="row between">
-                  <span className="dir-chip mono">{shown.app.toUpperCase()}</span>
-                  <span className="mono tiny muted">{ago(when(shown), now)}</span>
-                </span>
-                {shown.title && <h2 className="card-title">{shown.title}</h2>}
-                <p className="notif-full">{shown.fullText || 'NO TEXT'}</p>
+                <div className="notif-meta"><span className="notif-app">{shown.app}</span><span className="mono muted">{ago(when(shown), now)}</span></div>
+                {shown.title && <h2 className="notif-big-title">{shown.title}</h2>}
+                <p className="notif-full">{shown.fullText || 'No text'}</p>
+                <span className="spacer" />
+                <p className="muted small-print">Long messages end at 512 characters, that is all the phone hands over.</p>
                 {shown.clearable
-                  ? <button className="key danger" onClick={() => clear(shown.key)}>CLEAR FROM PHONE</button>
-                  : <span className="mono tiny muted">THE PHONE KEEPS THIS ONE · NO CLEAR</span>}
+                  ? <button className="btn danger big" onClick={() => clear(shown.key)}>Clear from phone</button>
+                  : <p className="muted small-print">The phone keeps this one: it can't be cleared.</p>}
               </>
             ) : (
-              <>
-                <h2 className="card-head">FULL MESSAGE</h2>
-                <p className="card-note">Click a notification to read all of it. Long texts end at 512 characters: that is all the phone hands over.</p>
-              </>
+              <EmptyState title="Full message" note="Click a notification to read all of it. Long messages end at 512 characters, that is all the phone hands over." />
             )}
-          </section>
-        </aside>
-      </div>
-    </main>
+          </aside>
+        </div>
+      )}
+    </div>
   )
 }

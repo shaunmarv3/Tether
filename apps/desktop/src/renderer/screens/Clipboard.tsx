@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 import type { AppState, Clip, ClipSettings, WipeSeconds } from '../../shared/api'
+import { sentence } from '../text'
 import { tether } from '../tether'
+import { EmptyState, Segmented, Switch as Toggle } from '../ui'
 import { errText, fmtSize } from './Files'
 
-const WIPE: [WipeSeconds, string][] = [[30, '30 S'], [60, '60 S'], [120, '2 MIN']]
+const WIPE: [WipeSeconds, string][] = [[30, '30 s'], [60, '60 s'], [120, '2 min']]
 
-export const DIR_LABEL = { phone: 'PHONE → PC', pc: 'PC → PHONE' } as const
+export const DIR_LABEL = { phone: 'Phone → PC', pc: 'PC → Phone' } as const
 
 // Ticks once a second so ages and wipe countdowns stay current.
 export function useNow(): number {
@@ -27,12 +29,13 @@ export function ago(iso: string, now: number): string {
 export const wipeLeft = (c: Clip, now: number) => (c.wipeAt ? Math.max(0, Math.ceil((Date.parse(c.wipeAt) - now) / 1000)) : 0)
 
 export function linkLine(state: AppState): string | null {
-  if (state.clipLink === 'starting') return 'CONNECTING…'
-  if (state.clipLink === 'error') return 'PHONE LINK LOST · RETRYING'
-  if (state.clipLink === 'off') return 'NO PHONE'
+  if (state.clipLink === 'starting') return 'connecting…'
+  if (state.clipLink === 'error') return 'phone link lost, retrying'
+  if (state.clipLink === 'off') return 'no phone'
   return null
 }
 
+// Old setting row, still used by the Security page until it is redone.
 export function Switch({ label, on, set }: { label: string; on: boolean; set: (on: boolean) => void }) {
   return (
     <button className="setting" aria-pressed={on} onClick={() => set(!on)}>
@@ -47,82 +50,71 @@ export function Clipboard({ state }: { state: AppState }) {
   const s = state.clipSettings
   const link = linkLine(state)
   const set = (patch: Partial<ClipSettings>) => void tether.setClipSettings({ ...s, ...patch })
-  const run = (p: Promise<void>) => { setError(null); p.catch((err) => setError(errText(err))) }
+  const run = (p: Promise<void>) => { setError(null); p.catch((err) => setError(sentence(errText(err)))) }
 
   return (
-    <main className="main">
-      <header className="row between wrap end">
-        <div className="col">
-          <span className="mono small muted">{s.sync ? 'SYNC ON · BOTH WAYS' : 'SYNC OFF'}{link && ` · ${link}`}</span>
-          <h1 className="headline">Copy here, <span className="accent-text">paste there.</span></h1>
-        </div>
-        <div className="row wrap">
-          <button className="key tall" disabled={!state.clips.length} onClick={() => void tether.clearClips()}>CLEAR HISTORY</button>
-          <button className={`key tall toggle-key ${s.sync ? 'pressed' : ''}`} aria-pressed={s.sync} onClick={() => set({ sync: !s.sync })}>
-            SYNC<span className={`led ${s.sync ? 'on' : ''}`} />
-          </button>
-        </div>
-      </header>
+    <div className="page">
+      <div className="pane-toolbar" role="toolbar" aria-label="Clipboard">
+        <h1>Clipboard</h1>
+        <span className="hint">{s.sync ? 'Copy on one side, paste on the other' : 'Sync is off'}{link && ` · ${link}`}</span>
+        <span className="spacer" />
+        <button className="btn mid" disabled={!state.clips.length} onClick={() => void tether.clearClips()}>Clear history</button>
+        <span className="clip-sync">Sync<Toggle label="Sync both ways" on={s.sync} set={(sync) => set({ sync })} /></span>
+      </div>
 
-      <div className="clip-layout">
-        <section className="clip-history" aria-labelledby="hist-h">
-          <h2 id="hist-h" className="clip-head">HISTORY · TODAY</h2>
-          {!state.clips.length && <div className="files-empty mono small muted">NOTHING COPIED YET · COPY ON EITHER SIDE</div>}
-          {state.clips.map((c) => {
-            const left = wipeLeft(c, now)
-            const gone = c.note === 'WIPED'
-            const tooBig = c.note === 'TOO BIG TO SEND'
-            const image = c.note === 'IMAGE'
-            return (
-              <div key={c.id} className={`clip-row ${c.secret ? 'secret' : ''}`}>
-                <span className="dir-chip mono">{DIR_LABEL[c.dir]}</span>
-                <div className="clip-body">
-                  <span className="clip-text">{c.secret ? '●●●●●● ONE-TIME CODE' : c.text}</span>
-                  <span className={`mono tiny ${c.secret && !gone ? 'amber-text' : 'muted'}`}>
-                    {gone ? 'WIPED' : c.wipeAt ? `HIDDEN · WIPES IN ${left} S` : tooBig ? `TOO BIG TO SEND · ${fmtSize(c.size)}`
-                      : image ? `ON THE PC CLIPBOARD · ${fmtSize(c.size)} · ${ago(c.at, now)}` : ago(c.at, now)}
-                  </span>
+      <div className="pane-body">
+        <section className="pane-scroll" aria-label="History, today">
+          {!state.clips.length && <EmptyState title="Nothing copied yet" note="Copy on either side and it shows here" />}
+          <div className="row-list">
+            {state.clips.map((c) => {
+              const left = wipeLeft(c, now)
+              const gone = c.note === 'WIPED'
+              const tooBig = c.note === 'TOO BIG TO SEND'
+              const image = c.note === 'IMAGE'
+              return (
+                <div key={c.id} className={`row clip-row${gone ? ' wiped' : ''}`}>
+                  <span className="chip clip-dir">{DIR_LABEL[c.dir]}</span>
+                  <div className="grow">
+                    <div className="ellipsis clip-text">{c.secret ? (gone ? 'One-time code' : 'One-time code, hidden') : image ? 'Screenshot' : c.text}</div>
+                    <div className={`mono clip-meta${c.secret && !gone ? ' accent' : ''}`}>
+                      {gone ? 'Wiped' : c.wipeAt ? `Hidden · wipes in ${left} s` : tooBig ? `Too big to send · ${fmtSize(c.size)}`
+                        : image ? `Image · on the PC clipboard · ${fmtSize(c.size)} · ${ago(c.at, now)}` : ago(c.at, now)}
+                    </div>
+                  </div>
+                  {!image && (
+                    <div className="clip-keys">
+                      <button className="btn small" disabled={gone} onClick={() => run(tether.copyClip(c.id))}>Copy</button>
+                      <button className="btn small" disabled={gone || tooBig} onClick={() => run(tether.sendClip(c.id))}>
+                        {c.dir === 'pc' ? 'Resend' : 'Send'}
+                      </button>
+                    </div>
+                  )}
                 </div>
-                {!image && <div className="row clip-keys">
-                  <button className="small-key" disabled={gone} onClick={() => run(tether.copyClip(c.id))}>COPY</button>
-                  <button className="small-key" disabled={gone || tooBig} onClick={() => run(tether.sendClip(c.id))}>
-                    {c.dir === 'pc' ? 'RESEND' : 'SEND'}
-                  </button>
-                </div>}
-              </div>
-            )
-          })}
-          {error && <div className="files-empty mono small danger-text" role="alert">{error}</div>}
+              )
+            })}
+          </div>
+          {error && <div className="error-text page-error" role="alert">{error}</div>}
         </section>
 
-        <div className="clip-side">
-          <div className="lcd clip-stats">
-            <span className="dim tiny">TODAY</span>
-            <div className="stat-grid">
-              <div className="col tight"><span className="stat-big">{state.clipStats.synced}</span><span className="dim tiny">CLIPS SYNCED</span></div>
-              <div className="col tight"><span className="stat-big">{state.clipStats.wiped}</span><span className="dim tiny">CODES WIPED</span></div>
-            </div>
+        <aside className="inspector" aria-label="Today and privacy">
+          <div className="stat-pair">
+            <div><div className="big-num">{state.clipStats.synced}</div><div className="stat-label">Clips synced today</div></div>
+            <div><div className="big-num">{state.clipStats.wiped}</div><div className="stat-label">Codes wiped</div></div>
           </div>
-
-          <section className="card" aria-labelledby="priv-h">
-            <h2 id="priv-h" className="card-head">PRIVACY</h2>
-            <div className="col toggles">
-              <Switch label="Hide one-time codes" on={s.hideCodes} set={(hideCodes) => set({ hideCodes })} />
-              <Switch label="Phone screenshots to PC clipboard" on={s.screenshots} set={(screenshots) => set({ screenshots })} />
-              <Switch label="Keep out of Windows clipboard history" on={s.keepOutOfHistory} set={(keepOutOfHistory) => set({ keepOutOfHistory })} />
-            </div>
-            <div className="col idle">
-              <span className="mono tiny muted">WIPE CODES AFTER</span>
-              <div className="segments three" role="group" aria-label="Wipe codes after">
-                {WIPE.map(([sec, label]) => (
-                  <button key={sec} className={`segment mono-seg ${s.wipeSeconds === sec ? 'on' : ''}`} aria-pressed={s.wipeSeconds === sec}
-                    onClick={() => set({ wipeSeconds: sec })}>{label}</button>
-                ))}
-              </div>
-            </div>
-          </section>
-        </div>
+          <div>
+            <h2 className="section-title">Privacy</h2>
+            <div className="switch-row">Hide one-time codes<Toggle label="Hide one-time codes" on={s.hideCodes} set={(hideCodes) => set({ hideCodes })} /></div>
+            <div className="switch-row">Phone screenshots to PC clipboard
+              <Toggle label="Phone screenshots to PC clipboard" on={s.screenshots} set={(screenshots) => set({ screenshots })} /></div>
+            <div className="switch-row">Keep out of Windows clipboard history
+              <Toggle label="Keep out of Windows clipboard history" on={s.keepOutOfHistory} set={(keepOutOfHistory) => set({ keepOutOfHistory })} /></div>
+          </div>
+          <div>
+            <div className="section-title apps-label">Wipe one-time codes after</div>
+            <Segmented label="Wipe codes after" full value={s.wipeSeconds} set={(wipeSeconds) => set({ wipeSeconds })} options={WIPE} />
+          </div>
+        </aside>
       </div>
-    </main>
+    </div>
   )
 }
