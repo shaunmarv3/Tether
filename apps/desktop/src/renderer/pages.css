@@ -1,0 +1,61 @@
+/* Stage as an app: page layouts (AP-* boards). Shared parts live in ui.css, the shell in shell.css. */
+
+/* Home (AP-Home) */
+.home { flex: 1; display: flex; flex-direction: column; min-height: 100%; }
+.home h2 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+.home-hero {
+  flex: none; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 20px;
+  padding: 26px 28px 24px; border-bottom: 1px solid var(--line);
+  background-color: #2B130B;
+  background-image: radial-gradient(circle at 88% 18%, rgba(255, 178, 122, 0.2), transparent 46%),
+    radial-gradient(rgba(246, 233, 218, 0.06) 1px, transparent 1.4px);
+  background-size: 100% 100%, 10px 10px;
+}
+.home-date { font-size: 11.5px; color: var(--muted); }
+.home-greeting { margin: 6px 0 0; font-size: 40px; font-weight: 500; letter-spacing: -0.035em; line-height: 1; }
+.home-line { margin: 8px 0 0; color: var(--text-soft); }
+.home-stats { display: flex; gap: 26px; align-items: flex-end; }
+.home-battery { display: flex; align-items: center; gap: 10px; }
+.home-stat { font-size: 30px; font-weight: 500; letter-spacing: -0.03em; line-height: 1; }
+.home-stat-label { font-size: 12px; color: var(--muted); }
+.home-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.home-sub { font-weight: 400; font-size: 12.5px; color: var(--muted); }
+.home-apps { flex: none; padding: 18px 28px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 12px; }
+.home-apps .link-btn { font-weight: 500; font-size: 12.5px; }
+.home-launcher { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 6px; }
+.home-app {
+  position: relative; min-width: 0; padding: 6px 0; display: flex; flex-direction: column; align-items: center; gap: 7px;
+  background: transparent; border: 0; border-radius: 12px; font-size: 12.5px;
+}
+.home-app:hover:not(:disabled) { background: var(--raised); }
+.home-app:disabled { opacity: 0.55; }
+.home-tile { box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35); letter-spacing: -0.02em; }
+.home-app-name { max-width: 100%; }
+.home-open-dot { position: absolute; top: 2px; right: 16%; width: 9px; height: 9px; border-radius: 50%; background: var(--accent); border: 2px solid var(--ground); }
+.home-cols { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.home-col { min-width: 0; padding: 16px 18px; border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
+.home-col:first-child { padding-left: 28px; }
+.home-col:last-child { padding-right: 28px; border-right: 0; gap: 10px; }
+.home-col > h2, .home-col > .home-head { margin-bottom: 2px; }
+.home-col .empty { margin: 8px 0; padding: 12px 0; align-items: flex-start; text-align: left; max-width: none; }
+.home-col .skeleton { padding: 0; }
+.home-bubble {
+  min-width: 0; padding: 9px 11px; display: flex; flex-direction: column; gap: 2px; text-align: left;
+  background: var(--raised-2); border: 0; border-radius: 12px 12px 12px 4px;
+}
+.home-bubble:hover { background: var(--selected); }
+.home-bubble-head { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; }
+.home-bubble-app { font-weight: 600; color: var(--accent); }
+.home-bubble-text { display: block; }
+.home-slip { min-width: 0; padding: 9px 11px; background: var(--text); color: var(--ink); border-radius: 4px; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3); }
+.home-slip.wiped { opacity: 0.5; }
+.home-slip-text { font-weight: 500; }
+.home-slip-meta { font-size: 10.5px; color: #6A4A38; }
+.home-layout {
+  display: flex; align-items: center; gap: 12px; padding: 8px; text-align: left;
+  background: #2E160E; border: 1px solid var(--control-line); border-radius: 12px;
+}
+.home-layout:hover:not(:disabled) { border-color: var(--control-line-2); }
+.home-layout:disabled { opacity: 0.55; }
+.home-layout-name { display: block; font-weight: 600; margin-bottom: 3px; }
+.layout-drawing { flex: none; }

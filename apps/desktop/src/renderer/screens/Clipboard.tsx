@@ -19,9 +19,9 @@ export function useNow(): number {
 
 export function ago(iso: string, now: number): string {
   const s = Math.max(0, Math.round((now - Date.parse(iso)) / 1000))
-  if (s < 60) return 'JUST NOW'
-  if (s < 3600) return `${Math.floor(s / 60)} MIN AGO`
-  return `${Math.floor(s / 3600)} H AGO`
+  if (s < 60) return 'just now'
+  if (s < 3600) return `${Math.floor(s / 60)} min ago`
+  return `${Math.floor(s / 3600)} h ago`
 }
 
 export const wipeLeft = (c: Clip, now: number) => (c.wipeAt ? Math.max(0, Math.ceil((Date.parse(c.wipeAt) - now) / 1000)) : 0)

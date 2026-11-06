@@ -5,6 +5,7 @@ import { Preview, type PreviewKind } from './Preview'
 import './theme.css'
 import './ui.css'
 import './shell.css'
+import './pages.css'
 
 // App windows load the same page with ?app=<package>&name=<name>&shape=<shape>; the pop-out phone with ?phone=1&name=…;
 // previews with ?preview=<file>&kind=….

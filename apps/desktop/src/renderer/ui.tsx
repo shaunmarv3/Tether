@@ -96,3 +96,28 @@ export function EmptyState({ title, note, kind = 'plain', boxed, children }: {
     </div>
   )
 }
+
+// The 8 warm tile tones for app letter tiles: [background, letter] (spec §4, AP-Home).
+export const TONES: [string, string][] = [
+  ['#FFB27A', '#24100A'], ['#F6E9DA', '#24100A'], ['#E07A52', '#F6E9DA'], ['#C99A6B', '#24100A'],
+  ['#8F4A2E', '#F6E9DA'], ['#F2C9A0', '#24100A'], ['#5E2E1C', '#F6E9DA'], ['#D9B48F', '#24100A'],
+]
+// Pinned apps take the tone of their pin slot (Home shows 8 different ones); others a stable one from the package name.
+export function toneOf(pkg: string, pins: { pkg: string }[]): [string, string] {
+  const i = pins.findIndex((p) => p.pkg === pkg)
+  if (i >= 0) return TONES[i % TONES.length]
+  let h = 0
+  for (const c of pkg) h = (h * 31 + c.charCodeAt(0)) >>> 0
+  return TONES[h % TONES.length]
+}
+
+export function Tile({ name, tone, size = 42, radius = 13, font = 18, className }: {
+  name: string; tone: [string, string]; size?: number; radius?: number; font?: number; className?: string
+}) {
+  return (
+    <span className={`tile${className ? ` ${className}` : ''}`} aria-hidden="true"
+      style={{ width: size, height: size, borderRadius: radius, fontSize: font, background: tone[0], color: tone[1] }}>
+      {name.charAt(0).toUpperCase()}
+    </span>
+  )
+}

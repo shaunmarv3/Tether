@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import type { PhoneApp } from '@tether/core'
 import { DEFAULT_APP_OPTIONS, type AppOptions, type AppState, type Shape } from '../../shared/api'
 import { tether } from '../tether'
-import { TINTS } from './Home'
+import { TONES } from '../ui'
+
 
 type Filter = 'all' | 'open' | 'pinned'
 const SHAPES: [Shape, string, string][] = [
@@ -39,7 +40,7 @@ export function Apps({ state }: { state: AppState }) {
     (filter === 'all' || (filter === 'open' ? isOpen(a.pkg) : isPinned(a.pkg))) &&
     (!q || a.name.toLowerCase().includes(q) || a.pkg.includes(q)))
   const app = apps?.find((a) => a.pkg === selected) ?? shown[0] ?? null
-  const tint = (pkg: string) => TINTS[Math.max(0, apps?.findIndex((a) => a.pkg === pkg) ?? 0) % 4]
+  const tint = (pkg: string) => TONES[Math.max(0, apps?.findIndex((a) => a.pkg === pkg) ?? 0) % 4][0]
   const openCount = (apps ?? []).filter((a) => isOpen(a.pkg)).length
 
   return (

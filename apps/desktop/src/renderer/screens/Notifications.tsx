@@ -4,17 +4,14 @@ import { tether } from '../tether'
 import { ago, useNow } from './Clipboard'
 import { errText } from './Files'
 
-const POLL_MS = 4000 // only while this page is open
+const POLL_MS = 4000 // only while a page that shows them is open (Home, Notifications)
 const when = (n: NotificationItem) => new Date(n.postedAt).toISOString()
 
-// The phone's notification shade, read over adb. CLEAR removes one from the phone (no undo, like a swipe).
-export function Notifications({ state }: { state: AppState }) {
-  const now = useNow()
+// The phone's shade, read every few seconds. null = not read yet (or no phone).
+export function useNotifications(state: AppState): { list: NotificationItem[] | null; setList: (f: (l: NotificationItem[] | null) => NotificationItem[] | null) => void; error: string | null; setError: (e: string | null) => void } {
   const ready = state.device?.state === 'device'
   const [list, setList] = useState<NotificationItem[] | null>(null)
-  const [picked, setPicked] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-
   useEffect(() => {
     setList(null)
     if (!ready) return
@@ -27,6 +24,15 @@ export function Notifications({ state }: { state: AppState }) {
     const t = setInterval(() => void load(), POLL_MS)
     return () => { alive = false; clearInterval(t) }
   }, [ready, state.device?.serial])
+  return { list, setList, error, setError }
+}
+
+// The phone's notification shade, read over adb. CLEAR removes one from the phone (no undo, like a swipe).
+export function Notifications({ state }: { state: AppState }) {
+  const now = useNow()
+  const ready = state.device?.state === 'device'
+  const { list, setList, error, setError } = useNotifications(state)
+  const [picked, setPicked] = useState<string | null>(null)
 
   function clear(key: string) {
     setList((l) => l?.filter((n) => n.key !== key) ?? null)

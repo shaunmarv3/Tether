@@ -22,6 +22,11 @@ import { tether } from './tether'
 
 const DOWNLOAD = '/sdcard/Download/'
 const isApk = (p: string) => p.toLowerCase().endsWith('.apk')
+// Page hints on the right of the status bar.
+const HINTS: Partial<Record<Page, string>> = {
+  home: 'Drop files anywhere to send them to the phone',
+  files: 'Double-click to open · drop files here to send them to this folder',
+}
 const clock = (ms: number) => { const s = Math.floor(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` }
 
 // The dock's open/collapsed choice, per page (renderer-only convenience; storage may be unavailable).
@@ -163,7 +168,7 @@ export function App() {
   return (
     <Shell state={state} page={page} go={setPage} onRail={mode === 'split' ? undefined : onRail} compact={mode === 'compact'} info={info}
       hint={mode === 'compact' ? 'Widen the window to see pages beside the phone'
-        : mode === 'landscape' ? 'Click a page in the rail to slide it over the phone' : undefined}
+        : mode === 'landscape' ? 'Click a page in the rail to slide it over the phone' : HINTS[page]}
       dock={<Dock state={state} mode={mode} open={dockOpen} setOpen={setDockOpen} visible={visible} info={info} stream={stream} onInfo={onInfo}
         recorder={recorder} notify={setNote} />}
       badges={recorder.startedAt !== null && (

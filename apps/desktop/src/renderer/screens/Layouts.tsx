@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import type { AppState, Layout } from '../../shared/api'
 import { tether } from '../tether'
-import { TINTS } from './Home'
+
+import { TONES } from '../ui'
 
 // Window spots as % of the screen's work area, for the little preview.
 function spot(b: Layout['windows'][number]['bounds']) {
@@ -11,6 +12,24 @@ function spot(b: Layout['windows'][number]['bounds']) {
     left: pct(b.x - (s.availLeft ?? 0), s.availWidth), top: pct(b.y - (s.availTop ?? 0), s.availHeight),
     width: pct(b.width, s.availWidth), height: pct(b.height, s.availHeight),
   }
+}
+
+// The layout's windows drawn into a w×h frame, placed like on the screen's work area (Home 64×40, Layouts 150×92).
+export function LayoutDrawing({ layout, w, h }: { layout: Layout; w: number; h: number }) {
+  const s = window.screen as Screen & { availLeft?: number; availTop?: number }
+  const pad = Math.round(h / 10), iw = w - 2 * pad, ih = h - 2 * pad
+  const fit = (v: number, of: number) => Math.min(1, Math.max(0, v / of))
+  return (
+    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden="true" className="layout-drawing">
+      <rect x="1" y="1" width={w - 2} height={h - 2} rx="4" fill="none" stroke="#7A4A30" />
+      {layout.windows.map((win, j) => {
+        const b = win.bounds
+        const x = pad + fit(b.x - (s.availLeft ?? 0), s.availWidth) * iw, y = pad + fit(b.y - (s.availTop ?? 0), s.availHeight) * ih
+        return <rect key={win.pkg} x={x} y={y} width={Math.max(3, fit(b.width, s.availWidth) * iw - 2)}
+          height={Math.max(3, fit(b.height, s.availHeight) * ih)} rx="2" fill={TONES[j % TONES.length][0]} />
+      })}
+    </svg>
+  )
 }
 
 export function Layouts({ state }: { state: AppState }) {
@@ -44,7 +63,7 @@ export function Layouts({ state }: { state: AppState }) {
             <div className="layout-preview" aria-hidden="true">
               {l.windows.map((w, j) => (
                 <div key={w.pkg} className="spot" style={spot(w.bounds)}>
-                  <span className="spot-letter" style={{ color: TINTS[j % 4] }}>{w.name.charAt(0).toUpperCase()}</span>
+                  <span className="spot-letter" style={{ color: TONES[j % 4][0] }}>{w.name.charAt(0).toUpperCase()}</span>
                   <span className="spot-name mono">{w.name.toUpperCase()}</span>
                 </div>
               ))}
