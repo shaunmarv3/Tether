@@ -35,15 +35,6 @@ export function linkLine(state: AppState): string | null {
   return null
 }
 
-// Old setting row, still used by the Security page until it is redone.
-export function Switch({ label, on, set }: { label: string; on: boolean; set: (on: boolean) => void }) {
-  return (
-    <button className="setting" aria-pressed={on} onClick={() => set(!on)}>
-      {label}<span className={`switch ${on ? 'on' : ''}`} />
-    </button>
-  )
-}
-
 export function Clipboard({ state }: { state: AppState }) {
   const now = useNow()
   const [error, setError] = useState<string | null>(null)
