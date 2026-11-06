@@ -11,6 +11,10 @@ files: # electron-vite bundles everything; no node_modules needed
 extraResources: # real files for the OS (window, taskbar, toasts)
   - from: resources/icon.ico
     to: icon.ico
+  - from: resources/tray-on.png
+    to: tray-on.png
+  - from: resources/tray-off.png
+    to: tray-off.png
 npmRebuild: false
 win:
   target: nsis

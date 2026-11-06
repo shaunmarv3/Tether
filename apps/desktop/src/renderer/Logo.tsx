@@ -1,12 +1,13 @@
-// TETHER mark: PC and phone as two nodes on one cable, an amber packet on the line.
-// Same drawing as the app icon (resources/icon.svg).
-export function Logo({ size = 28 }: { size?: number }) {
+// Logo C, "the t": a lowercase t whose stem runs out as a cable to a plug dot (AP-Logo).
+// dark = for dark grounds, light = for light grounds, flat = one colour (currentColor).
+export function Logo({ size = 16, tone = 'dark' }: { size?: number; tone?: 'dark' | 'light' | 'flat' }) {
+  const [stem, bar, dot] = tone === 'dark' ? ['#FFB27A', '#F6E9DA', '#F6E9DA']
+    : tone === 'light' ? ['#24100A', '#24100A', '#C2602F'] : ['currentColor', 'currentColor', 'currentColor']
   return (
-    <svg width={size} height={size} viewBox="0 0 32 32" fill="none" aria-hidden="true">
-      <circle cx="8" cy="24" r="4" stroke="var(--accent)" strokeWidth="2.4" />
-      <circle cx="24" cy="8" r="4" stroke="var(--accent)" strokeWidth="2.4" />
-      <path d="M10.9 21.1C15.5 19.6 12 12.4 21.1 10.9" stroke="var(--text)" strokeWidth="2.4" strokeLinecap="round" />
-      <circle cx="14.3" cy="16" r="1.7" fill="var(--amber)" />
+    <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden="true">
+      <path d="M24 6V40Q24 56 40 56H45" fill="none" stroke={stem} strokeWidth="10" strokeLinecap="round" />
+      <path d="M12 22H40" stroke={bar} strokeWidth="10" strokeLinecap="round" />
+      <circle cx="53" cy="56" r="6" fill={dot} />
     </svg>
   )
 }
